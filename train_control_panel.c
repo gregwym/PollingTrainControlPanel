@@ -217,18 +217,18 @@ int handleUserInput() {
 	if(plgetc(COM2, &user_input_char) > 0 && user_input_size < USER_INPUT_MAX) {
 		
 		// Push or pop char from user_input_buffer
-		if(user_input_char == ASCI_BACKSPACE) {
-			user_input_size--;
-			user_input_buffer[user_input_size] = '\0';
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
-			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
-		}
-		else {
+		if(user_input_char != ASCI_BACKSPACE) {
 			user_input_buffer[user_input_size] = user_input_char;
 			user_input_size++;
 			user_input_buffer[user_input_size] = '\0';
 			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size);
 			plputc(COM2, user_input_char);
+		}
+		else if(user_input_size > 0){
+			user_input_size--;
+			user_input_buffer[user_input_size] = '\0';
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
+			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 		}
 		
 		// If is EOL or buffer full
