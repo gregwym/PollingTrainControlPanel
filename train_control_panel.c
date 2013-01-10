@@ -34,6 +34,14 @@
 #define USER_INPUT_MAX 1000
 #define USER_COMMAND_QUIT 1
 
+/* Train Control */
+#define TRAIN_SYSTEM_START 96
+#define TRAIN_SYSTEM_STOP 97
+#define TRAIN_REVERSE 15
+#define TRAIN_SWITCH_STR 33
+#define TRAIN_SWITCH_CUR 34
+#define TRAIN_SWITCH_OFF 32
+
 /* Global Variable Declarations */
 unsigned int dbflags = 0;
 
@@ -158,59 +166,62 @@ int atoi(const char *str, int base) {
 	return (sign * n);
 }
 
+// Return: -1 Invalid command; 1 System command; 0 Normal command
 int handleUserCommand() {
 	// Single char command
 	if(user_input_size == 2) {
 		switch(user_input_buffer[0]) {
 			case 'g':
 				DEBUG(DB_TRAIN_CTRL, "Sending start\n");
-				plputc(COM1, 96);
+				plputc(COM1, TRAIN_SYSTEM_START);
 				break;
 			case 's':
 				DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
-				plputc(COM1, 97);
+				plputc(COM1, TRAIN_SYSTEM_START);
 				break;
 			default:
 				break;
 		}
-	}
-	else {
-		const char *str = user_input_buffer;
-		char command[10], token[10];
-		command[0] = '\0';
-		token[0] = '\0';
-		str = str2token(str, command);
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-		DEBUG(DB_USER_INPUT, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
-		
-		if(strcmp(command, "tr") == 0 || strcmp(command, "rv") == 0 || strcmp(command, "sw") == 0) {
-			str = str2token(str, token);
-			unsigned char number = atoi(token, 10);
-			
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 1, COLUMN_FIRST);
-			DEBUG(DB_USER_INPUT, "User Input: Arg1 0x%x\n", number);
-			str = str2token(str, token);
-			unsigned char value = 0;
-			switch(command[0]) {
-				case 'r':
-				case 't':
-					value = (command[0] == 'r') ? 15 : atoi(token, 10);
-					printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
-					DEBUG(DB_USER_INPUT, "User Input: Changing train #%u speed to %u\n", number, value);
-					break;
-				case 's':
-					value = (token[0] == 'S') ? 33 : 34;
-					printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
-					DEBUG(DB_USER_INPUT, "User Input: Assigning switch #%d direction to %s\n", number, token);
-					break;
-			}
-			plputc(COM1, value);
-			plputc(COM1, number);
-			plputc(COM1, 32); // Turn off the solenoid
-		}
+		return 1;
 	}
 	
-	return 0;
+	const char *str = user_input_buffer;
+	char command[10], token[10];
+	command[0] = '\0';
+	token[0] = '\0';
+	str = str2token(str, command);
+	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
+	DEBUG(DB_USER_INPUT, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
+	
+	if(strcmp(command, "tr") == 0 || strcmp(command, "rv") == 0 || strcmp(command, "sw") == 0) {
+		str = str2token(str, token);
+		unsigned char number = atoi(token, 10);
+		
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 1, COLUMN_FIRST);
+		DEBUG(DB_USER_INPUT, "User Input: Arg1 0x%x\n", number);
+		str = str2token(str, token);
+		unsigned char value = 0;
+		switch(command[0]) {
+			case 'r':
+			case 't':
+				value = (command[0] == 'r') ? TRAIN_REVERSE : atoi(token, 10);
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
+				DEBUG(DB_USER_INPUT, "User Input: Changing train #%u speed to %u\n", number, value);
+				break;
+			case 's':
+				value = (token[0] == 'S') ? TRAIN_SWITCH_STR : TRAIN_SWITCH_CUR;
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
+				DEBUG(DB_USER_INPUT, "User Input: Assigning switch #%d direction to %s\n", number, token);
+				break;
+		}
+		plputc(COM1, value);
+		plputc(COM1, number);
+		plputc(COM1, TRAIN_SWITCH_OFF); // Turn off the solenoid
+		
+		return 0;
+	}
+	
+	return -1;
 }
 
 int handleUserInput() {
