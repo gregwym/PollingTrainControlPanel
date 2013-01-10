@@ -16,13 +16,15 @@
 #define ASCI_BACKSPACE '\b'
 
 /* Screen formatting */
-#define LINE_ELAPSED_TIME "1"
-#define LINE_LAST_COMMAND "2"
-#define LINE_USER_INPUT "30"
-#define LINE_DEBUG "32"
-#define LINE_BOTTOM "35"
+#define NO_ARG 0xffffffff
 
-#define COLUMN_FIRST "1"
+#define LINE_ELAPSED_TIME 1
+#define LINE_LAST_COMMAND 2
+#define LINE_USER_INPUT 30
+#define LINE_DEBUG 32
+#define LINE_BOTTOM 35
+
+#define COLUMN_FIRST 1
 
 /* User Inputs */
 #define USER_INPUT_MAX 1000
@@ -55,10 +57,10 @@ unsigned int getTimerValue(int timer_base) {
  * IO Methods
  */
 
-void printAsciControl(int channel, char *control, char *arg1, char *arg2) {
+void printAsciControl(int channel, char *control, int arg1, int arg2) {
 	plprintf(channel, "%c[", ASCI_ESC);
-	if(arg1) plprintf(channel, "%s", arg1);
-	if(arg2) plprintf(channel, ";%s", arg2);
+	if(arg1 != NO_ARG) plprintf(channel, "%d", arg1);
+	if(arg2 != NO_ARG) plprintf(channel, ";%d", arg2);
 	plprintf(channel, "%s", control);
 }
 
@@ -114,7 +116,6 @@ int main(int argc, char* argv[]) {
 	char plio_buffer[CHANNEL_COUNT * OUTPUT_BUFFER_SIZE];
 	unsigned int plio_send_index[CHANNEL_COUNT];
 	unsigned int plio_save_index[CHANNEL_COUNT];
-	char i2a_buffer[12];
 	dbflags = DB_USER_INPUT | DB_TRAIN_CTRL; // Debug Flags
 	
 	/* Initialize IO: setup buffer; BOTH: turn off fifo; COM1: speed to 2400, enable stp2 */
@@ -124,7 +125,7 @@ int main(int argc, char* argv[]) {
 	plsetspeed(COM1, 2400);
 	setRegisterBit(UART1_BASE, UART_LCRH_OFFSET, STP2_MASK, TRUE);
 	
-	printAsciControl(COM2, ASCI_CLEAR_SCREEN, 0, 0);
+	printAsciControl(COM2, ASCI_CLEAR_SCREEN, NO_ARG, NO_ARG);
 	
 	/* Verifiying COM1's Configuration: nothing when debug flag is turned off */
 	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
@@ -175,8 +176,7 @@ int main(int argc, char* argv[]) {
 			
 			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_ELAPSED_TIME, COLUMN_FIRST);
 			plprintf(COM2, "Time elapsed: %d:%d,%d, timer value: 0x%x\n", tenth_sec_elapsed / 600, (tenth_sec_elapsed % 600) / 10, tenth_sec_elapsed % 10, timer_value);
-			plui2a(user_input_size + 1, 10, i2a_buffer);
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, i2a_buffer);
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
 			previous_timer_value = timer_value;
 		}
 		
@@ -204,7 +204,7 @@ int main(int argc, char* argv[]) {
 				
 				// Send to last command
 				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_LAST_COMMAND, COLUMN_FIRST);
-				printAsciControl(COM2, ASCI_CLEAR_TO_EOL, 0, 0);
+				printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 				plputstr(COM2, user_input_buffer);
 				
 				// Reset input buffer
@@ -214,7 +214,7 @@ int main(int argc, char* argv[]) {
 			
 			// Refresh Input Display
 			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, COLUMN_FIRST);
-			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, 0, 0);
+			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 			plputstr(COM2, user_input_buffer);
 		 }
 	}
