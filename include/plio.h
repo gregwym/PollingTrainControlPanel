@@ -39,7 +39,7 @@ void plflush( int channel );
 
 /* 
  * Try to send out a char
- * Return: -1 Unknown Channel, 0 Nothing Sent, 1 Sent
+ * Return: -1 Unknown Channel, 0 Nothing to send, 1 Sent, 2 UART FIFO Full
  */
 int plsend( int channel );
 

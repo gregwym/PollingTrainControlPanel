@@ -80,7 +80,7 @@ int plsend( int channel ) {
 		char c = buffer[actual_index];
 		
 		// If UART FIFO full, return
-		if( ( *flags & TXFF_MASK ) ) return -1;
+		if( ( *flags & TXFF_MASK ) ) return 2;
 		*data = c;
 		buffer[actual_index] = '\0';
 		
