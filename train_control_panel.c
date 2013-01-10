@@ -35,8 +35,8 @@
 #define USER_COMMAND_QUIT 1
 
 /* Train Control */
-#define TRAIN_SYSTEM_START 96
-#define TRAIN_SYSTEM_STOP 97
+#define SYSTEM_START 96
+#define SYSTEM_STOP 97
 #define TRAIN_REVERSE 15
 #define SWITCH_STR 33
 #define SWITCH_CUR 34
@@ -172,11 +172,11 @@ int handleUserCommand() {
 		switch(user_input_buffer[0]) {
 			case 'g':
 				DEBUG(DB_TRAIN_CTRL, "Sending start\n");
-				plputc(COM1, TRAIN_SYSTEM_START);
+				plputc(COM1, SYSTEM_START);
 				break;
 			case 's':
 				DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
-				plputc(COM1, TRAIN_SYSTEM_START);
+				plputc(COM1, SYSTEM_START);
 				break;
 			default:
 				break;
