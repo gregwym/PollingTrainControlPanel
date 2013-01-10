@@ -38,9 +38,9 @@
 #define TRAIN_SYSTEM_START 96
 #define TRAIN_SYSTEM_STOP 97
 #define TRAIN_REVERSE 15
-#define TRAIN_SWITCH_STR 33
-#define TRAIN_SWITCH_CUR 34
-#define TRAIN_SWITCH_OFF 32
+#define SWITCH_STR 33
+#define SWITCH_CUR 34
+#define SWITCH_OFF 32
 
 /* Global Variable Declarations */
 unsigned int dbflags = 0;
@@ -52,7 +52,6 @@ unsigned int tenth_sec_elapsed = 0;
 char user_input_buffer[1000] = {'\0'};
 unsigned int user_input_size = 0;
 char user_input_char = '\0';
-
 
 /*
  * Hardware Register Manipulation
@@ -209,14 +208,14 @@ int handleUserCommand() {
 				DEBUG(DB_USER_INPUT, "User Input: Changing train #%u speed to %u\n", number, value);
 				break;
 			case 's':
-				value = (token[0] == 'S') ? TRAIN_SWITCH_STR : TRAIN_SWITCH_CUR;
+				value = (token[0] == 'S') ? SWITCH_STR : SWITCH_CUR;
 				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
 				DEBUG(DB_USER_INPUT, "User Input: Assigning switch #%d direction to %s\n", number, token);
 				break;
 		}
 		plputc(COM1, value);
 		plputc(COM1, number);
-		plputc(COM1, TRAIN_SWITCH_OFF); // Turn off the solenoid
+		plputc(COM1, SWITCH_OFF); // Turn off the solenoid
 		
 		return 0;
 	}
