@@ -187,11 +187,15 @@ int main(int argc, char* argv[]) {
 			if(user_input_char == ASCI_BACKSPACE) {
 				user_input_size--;
 				user_input_buffer[user_input_size] = '\0';
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
+				printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 			}
 			else {
 				user_input_buffer[user_input_size] = user_input_char;
 				user_input_size++;
 				user_input_buffer[user_input_size] = '\0';
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size);
+				plputc(COM2, user_input_char);
 			}
 			
 			// If is EOL or buffer full
@@ -211,11 +215,6 @@ int main(int argc, char* argv[]) {
 				user_input_buffer[0] = '\0';
 				user_input_size = 0;
 			}
-			
-			// Refresh Input Display
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, COLUMN_FIRST);
-			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
-			plputstr(COM2, user_input_buffer);
 		 }
 	}
 	
