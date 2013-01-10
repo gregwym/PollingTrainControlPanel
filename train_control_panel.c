@@ -190,21 +190,23 @@ int handleUserCommand() {
 			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 1, COLUMN_FIRST);
 			DEBUG(DB_USER_INPUT, "User Input: Arg1 0x%x\n", number);
 			str = str2token(str, token);
-			unsigned char speed = 0;
+			unsigned char value = 0;
 			switch(command[0]) {
 				case 'r':
 				case 't':
-					speed = (command[0] == 'r') ? 15 : atoi(token, 10);
+					value = (command[0] == 'r') ? 15 : atoi(token, 10);
 					printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
-					DEBUG(DB_USER_INPUT, "User Input: Changing train #%u speed to %u\n", number, speed);
-					plputc(COM1, speed);
-					plputc(COM1, number);
+					DEBUG(DB_USER_INPUT, "User Input: Changing train #%u speed to %u\n", number, value);
 					break;
 				case 's':
+					value = (token[0] == 'S') ? 33 : 34;
 					printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
-					DEBUG(DB_USER_INPUT, "User Input: Assigning switch direction to %s\n", token);
+					DEBUG(DB_USER_INPUT, "User Input: Assigning switch #%d direction to %s\n", number, token);
 					break;
 			}
+			plputc(COM1, value);
+			plputc(COM1, number);
+			plputc(COM1, 32); // Turn off the solenoid
 		}
 	}
 	
