@@ -102,28 +102,125 @@ unsigned int getTimerValue(int timer_base) {
 	return value;
 }
 
+void handleTimeElapse() {
+	unsigned int timer_value = getTimerValue(TIMER3_BASE);
+	unsigned int time_elapsed = previous_timer_value - timer_value;
+	
+	// Fix time_elapsed when underflow
+	if(timer_value > previous_timer_value) {
+		time_elapsed = previous_timer_value + (TIMER_MAX - timer_value) + 1;
+	}
+	
+	// If time elapsed more than 1/10 sec
+	if(time_elapsed >= 200)
+	{
+		// Add elapsed time into remaining ticks, then convert to tenth-sec
+		timer_tick_remained += time_elapsed;
+		for(;timer_tick_remained >= 200; timer_tick_remained -= 200) tenth_sec_elapsed++;
+		previous_timer_value = timer_value;
+	
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_ELAPSED_TIME, COLUMN_FIRST);
+		plprintf(COM2, "Time elapsed: %d:%d,%d, timer value: 0x%x\n", tenth_sec_elapsed / 600, (tenth_sec_elapsed % 600) / 10, tenth_sec_elapsed % 10, timer_value);
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
+	}
+}
+
 /*
  * User Interactions
  */
 
-int handleUserCommand(unsigned int size, char *input) {
-	// If is q, quit
-	if(size == 2 && input[0] == 'q') {
-		return USER_COMMAND_QUIT;
+// export the first token to 'token' and return the address of the start of next token (maybe EOL)
+const char *str2token(const char *str, char *token) {
+	while(*str != ' ' && *str != '\n' && *str != '\r') *token++ = *str++;
+	*token = '\0';
+	while(*str == ' ') str++;
+	return str;
+}
+
+int strcmp(const char *src, const char *dst) {
+	int ret = 0;
+	while( ! (ret = *(unsigned char *)src - *(unsigned char *)dst) && *dst) ++src, ++dst;
+	if ( ret < 0 ) ret = -1 ;
+	else if ( ret > 0 ) ret = 1 ;
+	return( ret );
+}
+
+int handleUserCommand() {
+	// Single char command
+	if(user_input_size == 2) {
+		switch(user_input_buffer[0]) {
+			case 'g':
+				DEBUG(DB_TRAIN_CTRL, "Sending start\n");
+				plputc(COM1, 96);
+				break;
+			case 's':
+				DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
+				plputc(COM1, 97);
+				break;
+			default:
+				break;
+		}
+	}
+	else {
+		const char *str = user_input_buffer;
+		char token[10];
+		token[0] = '\0';
+		str = str2token(str, token);
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
+		DEBUG(DB_USER_INPUT, "User Input: Extracted token %s from 0x%x to 0x%x\n", token, user_input_buffer, str);
+		if(strcmp(token, "tr") == 0) {
+			DEBUG(DB_USER_INPUT, "User Input: Changing train speed\n");
+		}
+		else if(strcmp(token, "rv") == 0) {
+			DEBUG(DB_USER_INPUT, "User Input: Reversing train direction\n");
+		}
+		else if(strcmp(token, "sw") == 0) {
+			DEBUG(DB_USER_INPUT, "User Input: Assigning switch direction\n");
+		}
 	}
 	
-	// If is r, start the train
-	if(size == 2 && input[0] == 'r') {
-		DEBUG(DB_TRAIN_CTRL, "Sending start\n");
-		plputc(COM1, 96);
+	return 0;
+}
+
+int handleUserInput() {
+	if(plgetc(COM2, &user_input_char) > 0 && user_input_size < USER_INPUT_MAX) {
+		
+		// Push or pop char from user_input_buffer
+		if(user_input_char == ASCI_BACKSPACE) {
+			user_input_size--;
+			user_input_buffer[user_input_size] = '\0';
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
+			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
+		}
+		else {
+			user_input_buffer[user_input_size] = user_input_char;
+			user_input_size++;
+			user_input_buffer[user_input_size] = '\0';
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size);
+			plputc(COM2, user_input_char);
+		}
+		
+		// If is EOL or buffer full
+		if(user_input_char == '\n' || user_input_char == '\r' || user_input_size == USER_INPUT_MAX) {
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
+			DEBUG(DB_USER_INPUT, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
+			// If is q, quit
+			if(user_input_size == 2 && user_input_buffer[0] == 'q') {
+				return USER_COMMAND_QUIT;
+			}
+			
+			handleUserCommand();
+			
+			// Send to last command
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_LAST_COMMAND, COLUMN_FIRST);
+			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
+			plputstr(COM2, user_input_buffer);
+			
+			// Reset input buffer
+			user_input_buffer[0] = '\0';
+			user_input_size = 0;
+		}
 	}
-	
-	// If is s, stop the train
-	if(size == 2 && input[0] == 's') {
-		DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
-		plputc(COM1, 97);
-	}
-	
 	return 0;
 }
 
@@ -131,81 +228,27 @@ int handleUserCommand(unsigned int size, char *input) {
  * Main Polling Loop
  */
 void pollingLoop() {
-	/* Elapsed time tracker */
+	/* Initialize Elapsed time tracker */
 	previous_timer_value = getTimerValue(TIMER3_BASE);
 	timer_tick_remained = 0;
 	tenth_sec_elapsed = 0;
 	
-	/* User Input Buffer */
+	/* Initialize User Input Buffer */
 	user_input_size = 0;
-	user_input_char;
+	user_input_char = '\0';
 	user_input_buffer[user_input_size] = '\0';
 		
 	/* Polling loop */
 	while(TRUE) {
-		
 		/* Polling IO: Give it a chance to send out char */
 		plsend(COM1);
 		plsend(COM2);
 		
 		/* Timer: Calculate and display time elapsed */
-		unsigned int timer_value = getTimerValue(TIMER3_BASE);
-		unsigned int time_elapsed = previous_timer_value - timer_value;
-		
-		// Fix time_elapsed when underflow
-		if(timer_value > previous_timer_value) {
-			time_elapsed = previous_timer_value + (TIMER_MAX - timer_value) + 1;
-		}
-		
-		// If time elapsed more than 1/10 sec
-		if(time_elapsed >= 200)
-		{
-			// Add elapsed time into remaining ticks, then convert to tenth-sec
-			timer_tick_remained += time_elapsed;
-			for(;timer_tick_remained >= 200; timer_tick_remained -= 200) tenth_sec_elapsed++;
-			previous_timer_value = timer_value;
-
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_ELAPSED_TIME, COLUMN_FIRST);
-			plprintf(COM2, "Time elapsed: %d:%d,%d, timer value: 0x%x\n", tenth_sec_elapsed / 600, (tenth_sec_elapsed % 600) / 10, tenth_sec_elapsed % 10, timer_value);
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
-		}
+		handleTimeElapse();
 		
 		/* User Input */
-		if(plgetc(COM2, &user_input_char) > 0 && user_input_size < USER_INPUT_MAX) {
-			
-			// Push or pop char from user_input_buffer
-			if(user_input_char == ASCI_BACKSPACE) {
-				user_input_size--;
-				user_input_buffer[user_input_size] = '\0';
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
-				printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
-			}
-			else {
-				user_input_buffer[user_input_size] = user_input_char;
-				user_input_size++;
-				user_input_buffer[user_input_size] = '\0';
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size);
-				plputc(COM2, user_input_char);
-			}
-			
-			// If is EOL or buffer full
-			if(user_input_char == '\n' || user_input_char == '\r' || user_input_size == USER_INPUT_MAX) {
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-				DEBUG(DB_USER_INPUT, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
-				if(handleUserCommand(user_input_size, user_input_buffer) == USER_COMMAND_QUIT) {
-					break;
-				}
-				
-				// Send to last command
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_LAST_COMMAND, COLUMN_FIRST);
-				printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
-				plputstr(COM2, user_input_buffer);
-				
-				// Reset input buffer
-				user_input_buffer[0] = '\0';
-				user_input_size = 0;
-			}
-		 }
+		if(handleUserInput() == USER_COMMAND_QUIT) break;
 	}
 }
 
@@ -215,7 +258,7 @@ int main(int argc, char* argv[]) {
 	char plio_buffer[CHANNEL_COUNT * OUTPUT_BUFFER_SIZE];
 	unsigned int plio_send_index[CHANNEL_COUNT];
 	unsigned int plio_save_index[CHANNEL_COUNT];
-	dbflags = /*DB_IO |*/ DB_TIMER | DB_USER_INPUT | DB_TRAIN_CTRL; // Debug Flags
+	dbflags = /*DB_IO | DB_TIMER |*/ DB_USER_INPUT | DB_TRAIN_CTRL; // Debug Flags
 	
 	/* Initialize IO: setup buffer; BOTH: turn off fifo; COM1: speed to 2400, enable stp2 */
 	plbootstrap(plio_buffer, plio_send_index, plio_save_index);
