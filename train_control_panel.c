@@ -3,8 +3,8 @@
 #include <ts7200.h>
 #include <debug.h>
 
-#define ZERO 0x00000000
-#define ONE 0xffffffff
+#define FALSE 0x00000000
+#define TRUE 0xffffffff
 
 /* ASCI Constants */
 #define ASCI_ESC 27
@@ -122,7 +122,7 @@ int main(int argc, char* argv[]) {
 	plsetfifo(COM2, OFF);
 	plsetfifo(COM1, OFF);
 	plsetspeed(COM1, 2400);
-	setRegisterBit(UART1_BASE, UART_LCRH_OFFSET, STP2_MASK, ONE);
+	setRegisterBit(UART1_BASE, UART_LCRH_OFFSET, STP2_MASK, TRUE);
 	
 	printAsciControl(COM2, ASCI_CLEAR_SCREEN, 0, 0);
 	
@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) {
 	unsigned int timer_tick_remained = 0;
 	unsigned int tenth_sec_elapsed = 0;
 	
-	setTimerControl(TIMER3_BASE, ONE, ZERO, ZERO);
+	setTimerControl(TIMER3_BASE, TRUE, FALSE, FALSE);
 	previous_timer_value = getTimerValue(TIMER3_BASE);
 	DEBUG(DB_TIMER, "Timer3 value start with 0x%x.\n", previous_timer_value);
 	
@@ -163,7 +163,7 @@ int main(int argc, char* argv[]) {
 		
 		// Fix time_elapsed when underflow
 		if(timer_value > previous_timer_value) {
-			time_elapsed = previous_timer_value + (ONE - timer_value);
+			time_elapsed = previous_timer_value + (TRUE - timer_value);
 		}
 		
 		// If time elapsed more than 1/10 sec
