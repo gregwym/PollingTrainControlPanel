@@ -6,6 +6,7 @@
 #define ZERO 0x00000000
 #define ONE 0xffffffff
 
+/* ASCI Constants */
 #define ASCI_ESC 27
 #define ASCI_CLEAR_SCREEN "2J"
 #define ASCI_CLEAR_TO_EOL "K"
@@ -14,6 +15,7 @@
 #define ASCI_CURSOR_TO "H"
 #define ASCI_BACKSPACE '\b'
 
+/* Screen formatting */
 #define LINE_ELAPSED_TIME "1"
 #define LINE_LAST_COMMAND "2"
 #define LINE_USER_INPUT "30"
@@ -21,6 +23,10 @@
 #define LINE_BOTTOM "35"
 
 #define COLUMN_FIRST "1"
+
+/* User Inputs */
+#define USER_INPUT_MAX 1000
+#define USER_COMMAND_QUIT 1
 
 static unsigned int dbflags;
 
@@ -72,6 +78,30 @@ int getRegister(int base, int offset) {
 int getRegisterBit(int base, int offset, int mask) {
 	int *addr = (int *)(base + offset);
 	return (*addr) & mask;
+}
+
+/*
+ * User Interactions
+ */
+int handleUserCommand(unsigned int size, char *input) {
+	// If is q, quit
+	if(size == 2 && input[0] == 'q') {
+		return USER_COMMAND_QUIT;
+	}
+	
+	// If is r, start the train
+	if(size == 2 && input[0] == 'r') {
+		DEBUG(DB_TRAIN_CTRL, "Sending start\n");
+		plputc(COM1, 96);
+	}
+	
+	// If is s, stop the train
+	if(size == 2 && input[0] == 's') {
+		DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
+		plputc(COM1, 97);
+	}
+	
+	return 0;
 }
 
 /* 
@@ -151,7 +181,7 @@ int main(int argc, char* argv[]) {
 		}
 		
 		/* User Input */
-		if(plgetc(COM2, &user_input_char) > 0 && user_input_size < 1000) {
+		if(plgetc(COM2, &user_input_char) > 0 && user_input_size < USER_INPUT_MAX) {
 			
 			// Push or pop char from user_input_buffer
 			if(user_input_char == ASCI_BACKSPACE) {
@@ -164,24 +194,12 @@ int main(int argc, char* argv[]) {
 				user_input_buffer[user_input_size] = '\0';
 			}
 			
-			// If is EOL
-			if(user_input_char == '\n' || user_input_char == '\r') {
-				DEBUG(DB_USER_INPUT, "User Input: Reach EOL. Input Size %u, value %s", user_input_size, user_input_buffer);
-				// If is q, quit
-				if(user_input_size == 2 && user_input_buffer[0] == 'q') {
+			// If is EOL or buffer full
+			if(user_input_char == '\n' || user_input_char == '\r' || user_input_size == USER_INPUT_MAX) {
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
+				DEBUG(DB_USER_INPUT, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
+				if(handleUserCommand(user_input_size, user_input_buffer) == USER_COMMAND_QUIT) {
 					break;
-				}
-				
-				// If is r, start the train
-				if(user_input_size == 2 && user_input_buffer[0] == 'r') {
-					DEBUG(DB_TRAIN_CTRL, "Sending start\n");
-					plputc(COM1, 96);
-				}
-				
-				// If is s, stop the train
-				if(user_input_size == 2 && user_input_buffer[0] == 's') {
-					DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
-					plputc(COM1, 97);
 				}
 				
 				// Send to last command
