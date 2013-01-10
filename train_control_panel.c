@@ -131,7 +131,7 @@ void handleTimeElapse() {
 
 // export the first token to 'token' and return the address of the start of next token (maybe EOL)
 const char *str2token(const char *str, char *token) {
-	while(*str != ' ' && *str != '\n' && *str != '\r') *token++ = *str++;
+	while(*str != '\0' && *str != ' ' && *str != '\n' && *str != '\r') *token++ = *str++;
 	*token = '\0';
 	while(*str == ' ') str++;
 	return str;
@@ -143,6 +143,19 @@ int strcmp(const char *src, const char *dst) {
 	if ( ret < 0 ) ret = -1 ;
 	else if ( ret > 0 ) ret = 1 ;
 	return( ret );
+}
+
+int atoi(const char *str, int base) {
+	int sign = 1, n = 0;
+	while(*str == ' ') str++;
+	sign = 1;
+	switch(*str) {
+		case '-': sign = -1;
+		default: 
+			break;
+	}
+	while((*str) >= '0' && (*str) <= '9') n = base * n + (*str++ - '0');
+	return (sign * n);
 }
 
 int handleUserCommand() {
@@ -163,19 +176,35 @@ int handleUserCommand() {
 	}
 	else {
 		const char *str = user_input_buffer;
-		char token[10];
+		char command[10], token[10];
+		command[0] = '\0';
 		token[0] = '\0';
-		str = str2token(str, token);
+		str = str2token(str, command);
 		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-		DEBUG(DB_USER_INPUT, "User Input: Extracted token %s from 0x%x to 0x%x\n", token, user_input_buffer, str);
-		if(strcmp(token, "tr") == 0) {
-			DEBUG(DB_USER_INPUT, "User Input: Changing train speed\n");
-		}
-		else if(strcmp(token, "rv") == 0) {
-			DEBUG(DB_USER_INPUT, "User Input: Reversing train direction\n");
-		}
-		else if(strcmp(token, "sw") == 0) {
-			DEBUG(DB_USER_INPUT, "User Input: Assigning switch direction\n");
+		DEBUG(DB_USER_INPUT, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
+		
+		if(strcmp(command, "tr") == 0 || strcmp(command, "rv") == 0 || strcmp(command, "sw") == 0) {
+			str = str2token(str, token);
+			unsigned char number = atoi(token, 10);
+			
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 1, COLUMN_FIRST);
+			DEBUG(DB_USER_INPUT, "User Input: Arg1 0x%x\n", number);
+			str = str2token(str, token);
+			unsigned char speed = 0;
+			switch(command[0]) {
+				case 'r':
+				case 't':
+					speed = (command[0] == 'r') ? 15 : atoi(token, 10);
+					printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
+					DEBUG(DB_USER_INPUT, "User Input: Changing train #%u speed to %u\n", number, speed);
+					plputc(COM1, speed);
+					plputc(COM1, number);
+					break;
+				case 's':
+					printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
+					DEBUG(DB_USER_INPUT, "User Input: Assigning switch direction to %s\n", token);
+					break;
+			}
 		}
 	}
 	
@@ -258,7 +287,7 @@ int main(int argc, char* argv[]) {
 	char plio_buffer[CHANNEL_COUNT * OUTPUT_BUFFER_SIZE];
 	unsigned int plio_send_index[CHANNEL_COUNT];
 	unsigned int plio_save_index[CHANNEL_COUNT];
-	dbflags = /*DB_IO | DB_TIMER |*/ DB_USER_INPUT | DB_TRAIN_CTRL; // Debug Flags
+	dbflags = DB_IO | /*DB_TIMER |*/ DB_USER_INPUT | DB_TRAIN_CTRL; // Debug Flags
 	
 	/* Initialize IO: setup buffer; BOTH: turn off fifo; COM1: speed to 2400, enable stp2 */
 	plbootstrap(plio_buffer, plio_send_index, plio_save_index);
