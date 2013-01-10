@@ -7,7 +7,7 @@
 /*
  * Bit flags for DEBUG()
  */
-#define DB_PLIO        0x001
+#define DB_IO        0x001
 #define DB_TIMER       0x002
 #define DB_USER_INPUT  0x004
 #define DB_TRAIN_CTRL  0x008
