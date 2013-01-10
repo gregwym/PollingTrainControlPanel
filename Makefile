@@ -4,7 +4,7 @@
 XCC     = gcc
 AS	= as
 LD      = ld
-CFLAGS  = -c -fPIC -Wall -I. -I./io/include -mcpu=arm920t -msoft-float
+CFLAGS  = -c -fPIC -Wall -I. -I./include -mcpu=arm920t -msoft-float
 # -g: include hooks for gdb
 # -c: only compile
 # -mcpu=arm920t: generate code for the 920t architecture
@@ -14,7 +14,7 @@ CFLAGS  = -c -fPIC -Wall -I. -I./io/include -mcpu=arm920t -msoft-float
 ASFLAGS	= -mcpu=arm920t -mapcs-32
 # -mapcs: always generate a complete stack frame
 
-LDFLAGS = -init main -Map train_control_panel.map -N  -T orex.ld -L/u/wbcowan/gnuarm-4.0.2/lib/gcc/arm-elf/4.0.2 -L./io/lib
+LDFLAGS = -init main -Map train_control_panel.map -N  -T orex.ld -L/u/wbcowan/gnuarm-4.0.2/lib/gcc/arm-elf/4.0.2 -L./lib
 
 all:  train_control_panel.s train_control_panel.elf
 

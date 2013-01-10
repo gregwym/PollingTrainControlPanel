@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ./io/src/
+cd ./io/
 make clean
 make
 cp plio.a ../lib/libplio.a
