@@ -36,8 +36,32 @@
 
 static unsigned int dbflags;
 
+/*
+ * Hardware Register Manipulation
+ */
+
+int getRegister(int base, int offset) {
+	int *addr = (int *)(base + offset);
+	return *addr;
+}
+
+int getRegisterBit(int base, int offset, int mask) {
+	return (getRegister(base, offset)) & mask;
+}
+
+void setRegister(int base, int offset, int value) {
+	int *addr = (int *)(base + offset);
+	*addr = value;
+}
+
+void setRegisterBit(int base, int offset, int mask, int value) {
+	int buf = getRegister(base, offset);
+	buf = value ? buf | mask : buf & ~mask;
+	setRegister(base, offset, buf);
+}
+
 /* 
- * IO Methods
+ * IO Control
  */
 
 void printAsciControl(int channel, char *control, int arg1, int arg2) {
@@ -47,26 +71,8 @@ void printAsciControl(int channel, char *control, int arg1, int arg2) {
 	plprintf(channel, "%s", control);
 }
 
-void setRegisterBit(int base, int offset, int mask, int value) {
-	int *addr = (int *)(base + offset);
-	int buf = *addr;
-	buf = value ? buf | mask : buf & ~mask;
-	*addr = buf;
-	return;
-}
-
-int getRegister(int base, int offset) {
-	int *addr = (int *)(base + offset);
-	return *addr;
-}
-
-int getRegisterBit(int base, int offset, int mask) {
-	int *addr = (int *)(base + offset);
-	return (*addr) & mask;
-}
-
 /* 
- * Timer Methods
+ * Timer Control
  */
 
 unsigned int setTimerControl(int timer_base, unsigned int enable, unsigned int mode, unsigned int clksel) {
