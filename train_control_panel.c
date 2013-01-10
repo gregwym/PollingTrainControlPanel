@@ -231,6 +231,10 @@ int handleUserInput() {
 		
 		// If is EOL or buffer full
 		if(user_input_char == '\n' || user_input_char == '\r' || user_input_size == USER_INPUT_MAX) {
+			// Clear the input line
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, COLUMN_FIRST);
+			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
+			
 			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
 			DEBUG(DB_USER_INPUT, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
 			// If is q, quit
