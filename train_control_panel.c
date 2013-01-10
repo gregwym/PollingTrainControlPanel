@@ -34,7 +34,17 @@
 #define USER_INPUT_MAX 1000
 #define USER_COMMAND_QUIT 1
 
-static unsigned int dbflags;
+/* Global Variable Declarations */
+unsigned int dbflags = 0;
+
+unsigned int previous_timer_value = 0;
+unsigned int timer_tick_remained = 0;
+unsigned int tenth_sec_elapsed = 0;
+
+char user_input_buffer[1000] = {'\0'};
+unsigned int user_input_size = 0;
+char user_input_char = '\0';
+
 
 /*
  * Hardware Register Manipulation
@@ -95,6 +105,7 @@ unsigned int getTimerValue(int timer_base) {
 /*
  * User Interactions
  */
+
 int handleUserCommand(unsigned int size, char *input) {
 	// If is q, quit
 	if(size == 2 && input[0] == 'q') {
@@ -121,14 +132,13 @@ int handleUserCommand(unsigned int size, char *input) {
  */
 void pollingLoop() {
 	/* Elapsed time tracker */
-	unsigned int previous_timer_value = getTimerValue(TIMER3_BASE);
-	unsigned int timer_tick_remained = 0;
-	unsigned int tenth_sec_elapsed = 0;
+	previous_timer_value = getTimerValue(TIMER3_BASE);
+	timer_tick_remained = 0;
+	tenth_sec_elapsed = 0;
 	
 	/* User Input Buffer */
-	char user_input_buffer[1000];
-	unsigned int user_input_size = 0;
-	char user_input_char;
+	user_input_size = 0;
+	user_input_char;
 	user_input_buffer[user_input_size] = '\0';
 		
 	/* Polling loop */
@@ -205,7 +215,7 @@ int main(int argc, char* argv[]) {
 	char plio_buffer[CHANNEL_COUNT * OUTPUT_BUFFER_SIZE];
 	unsigned int plio_send_index[CHANNEL_COUNT];
 	unsigned int plio_save_index[CHANNEL_COUNT];
-	dbflags = DB_TIMER | DB_USER_INPUT | DB_TRAIN_CTRL; // Debug Flags
+	dbflags = /*DB_IO |*/ DB_TIMER | DB_USER_INPUT | DB_TRAIN_CTRL; // Debug Flags
 	
 	/* Initialize IO: setup buffer; BOTH: turn off fifo; COM1: speed to 2400, enable stp2 */
 	plbootstrap(plio_buffer, plio_send_index, plio_save_index);
