@@ -1,5 +1,5 @@
 #include <plio.h>
-// #include <bwio.h>
+#include <bwio.h>
 #include <ts7200.h>
 #include <debug.h>
 
@@ -63,6 +63,7 @@ char user_input_buffer[USER_INPUT_MAX] = {'\0'};
 unsigned int user_input_size = 0;
 
 char sensor_data[SENSOR_TOTAL * SENSOR_BYTE_EACH] = {};
+char sensor_ids[SENSOR_TOTAL] = {};
 unsigned int sensor_data_next = 0;
 unsigned int recent_sensor[SENSOR_RECENT] = {};
 unsigned int recent_sensor_index = 0;
@@ -287,6 +288,28 @@ int handleUserInput() {
 /*
  * Sensor Data Collection
  */
+void sensorBootstrap(){
+	int i;
+	for(i = 0; i < SENSOR_TOTAL; i++) {
+		sensor_ids[i] = 'A' + i;
+	}
+	
+	// bwprintf(COM2, "%c[%d;%d%s", ASCI_ESC, LINE_DEBUG, COLUMN_FIRST, ASCI_CURSOR_TO);
+	// bwprintf(COM2, "Sensor: Booting\n");
+	while((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, CTS_MASK)) || 
+	      (!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, TXFE_MASK)) || 
+	      (!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, RXFE_MASK))) {
+		// bwprintf(COM2, ".");
+		if((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, RXFE_MASK))) {
+			// char c = 
+			bwgetc(COM1);
+			// bwprintf(COM2, "Sensor: Consuming sensor data 0x%x\n", c);
+		}
+	}
+	plputc(COM1, SENSOR_READ_MULTI + SENSOR_TOTAL);
+	// bwprintf(COM2, "Sensor: Sent read requrest\n");
+}
+
 void saveSensorData(unsigned int index, char new_data) {
 	// Save to sensor_data
 	char old_data = sensor_data[index];
@@ -299,8 +322,9 @@ void saveSensorData(unsigned int index, char new_data) {
 			old_bit = (old_data >> i) & SENSOR_BIT_MASK;
 			new_bit = (new_data >> i) & SENSOR_BIT_MASK;
 			if(old_bit != new_bit) {
+				int bit_id = (8 * (index % 2)) + (8 - i);
 				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
-				DEBUG(DB_SENSOR, "#%d%d %x -> %x\n", index, 7 - i, old_bit, new_bit);
+				DEBUG(DB_SENSOR, "#%c%d %x -> %x\n", sensor_ids[index / 2], bit_id, old_bit, new_bit);
 				
 				// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + (recent_sensor_index * COLUMN_SENSOR_WIDTH));
 				// plprintf(COM2, "|%d%d:%x", index, i, new_bit);
@@ -310,7 +334,7 @@ void saveSensorData(unsigned int index, char new_data) {
 	}
 	
 	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + index, COLUMN_FIRST);
-	DEBUG(DB_SENSOR, "%d: 0x%x\n", index, new_data);
+	DEBUG(DB_SENSOR, "%c: 0x%x\n", sensor_ids[index / 2], new_data);
 }
 void collectSensorData() {
 	char sensor_new_data = '\0';
@@ -346,8 +370,8 @@ void pollingLoop() {
 	recent_sensor_index = 0;
 	
 	/* Initialize Sensor Data Request */
-	plputc(COM1, SENSOR_READ_MULTI + SENSOR_TOTAL);
-		
+	sensorBootstrap();
+	
 	/* Polling loop */
 	while(TRUE) {
 		/* Sensor: Collect and display data */
