@@ -24,6 +24,7 @@
 
 #define LINE_ELAPSED_TIME 1
 #define LINE_LAST_COMMAND 2
+#define LINE_RECENT_SENSOR 3
 #define LINE_USER_INPUT 20
 #define LINE_DEBUG 25
 #define LINE_BOTTOM 35
@@ -47,9 +48,10 @@
 
 #define SENSOR_READ_ONE 192
 #define SENSOR_READ_MULTI 128
-#define SENSOR_TOTAL 5
+#define SENSOR_DECODER_TOTAL 5
+#define SENSOR_RECENT_TOTAL 5
 #define SENSOR_BYTE_EACH 2
-#define SENSOR_RECENT 5
+#define SENSOR_BYTE_SIZE 8
 #define SENSOR_BIT_MASK 0x01
 
 /* Global Variable Declarations */
@@ -62,10 +64,16 @@ unsigned int tenth_sec_elapsed = 0;
 char user_input_buffer[USER_INPUT_MAX] = {'\0'};
 unsigned int user_input_size = 0;
 
-char sensor_data[SENSOR_TOTAL * SENSOR_BYTE_EACH] = {};
-char sensor_ids[SENSOR_TOTAL] = {};
-unsigned int sensor_data_next = 0;
-unsigned int recent_sensor[SENSOR_RECENT] = {};
+typedef struct SensorDatum {
+	char decoder_id;
+	unsigned int sensor_id;
+	unsigned int value;
+} SensorDatum;
+
+char sensor_decoder_data[SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH] = {};
+char sensor_decoder_ids[SENSOR_DECODER_TOTAL] = {};
+unsigned int sensor_decoder_next = 0;
+SensorDatum recent_sensor_data[SENSOR_RECENT_TOTAL] = {};
 unsigned int recent_sensor_index = 0;
 
 /*
@@ -289,11 +297,15 @@ int handleUserInput() {
  * Sensor Data Collection
  */
 void sensorBootstrap(){
-	int i;
-	for(i = 0; i < SENSOR_TOTAL; i++) {
-		sensor_ids[i] = 'A' + i;
+	int i, j;
+	for(i = 0; i < SENSOR_DECODER_TOTAL; i++) {
+		sensor_decoder_ids[i] = 'A' + i;
+		for(j = 0; j < SENSOR_BYTE_EACH; j++) {
+			sensor_decoder_data[i * SENSOR_BYTE_EACH + j] = 0xff;
+		}
 	}
 	
+	/* DEBUG Sensor Bootstrap require bwprintf */
 	// bwprintf(COM2, "%c[%d;%d%s", ASCI_ESC, LINE_DEBUG, COLUMN_FIRST, ASCI_CURSOR_TO);
 	// bwprintf(COM2, "Sensor: Booting\n");
 	while((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, CTS_MASK)) || 
@@ -306,50 +318,77 @@ void sensorBootstrap(){
 			// bwprintf(COM2, "Sensor: Consuming sensor data 0x%x\n", c);
 		}
 	}
-	plputc(COM1, SENSOR_READ_MULTI + SENSOR_TOTAL);
+	plputc(COM1, SENSOR_READ_MULTI + SENSOR_DECODER_TOTAL);
 	// bwprintf(COM2, "Sensor: Sent read requrest\n");
 }
 
-void saveSensorData(unsigned int index, char new_data) {
-	// Save to sensor_data
-	char old_data = sensor_data[index];
-	sensor_data[index] = new_data;
+void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {
+	// Push in reverse order
+	int previous_sensor_index = recent_sensor_index;
+	recent_sensor_index = (recent_sensor_index + SENSOR_RECENT_TOTAL - 1) % SENSOR_RECENT_TOTAL;
+	recent_sensor_data[recent_sensor_index].decoder_id = decoder_id;
+	recent_sensor_data[recent_sensor_index].sensor_id = sensor_id;
+	recent_sensor_data[recent_sensor_index].value = value;
 	
-	if(old_data != new_data) {
-		int i;
-		char old_bit, new_bit;
-		for(i = 0; i < 8; i++) {
-			old_bit = (old_data >> i) & SENSOR_BIT_MASK;
-			new_bit = (new_data >> i) & SENSOR_BIT_MASK;
-			if(old_bit != new_bit) {
-				int bit_id = (8 * (index % 2)) + (8 - i);
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
-				DEBUG(DB_SENSOR, "#%c%d %x -> %x\n", sensor_ids[index / 2], bit_id, old_bit, new_bit);
+	// Print
+	int i;
+	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST);
+	printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
+	for(i = recent_sensor_index; i != previous_sensor_index; i = ((i + 1) % SENSOR_RECENT_TOTAL)) {
+		plprintf(COM2, "|%c%d:%x\t", (recent_sensor_data[i]).decoder_id, recent_sensor_data[i].sensor_id, recent_sensor_data[i].value);
+	}
+}
+
+void saveDecoderData(unsigned int decoder_index, char new_data) {
+	// Save to sensor_decoder_data
+	char old_data = sensor_decoder_data[decoder_index];
+	sensor_decoder_data[decoder_index] = new_data;
+	
+	// If changed
+	if(/*FALSE*/ old_data != new_data) {
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + decoder_index, COLUMN_FIRST);
+		DEBUG(DB_SENSOR, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
+		
+		// Temporarily return here
+		return;
 				
-				// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + (recent_sensor_index * COLUMN_SENSOR_WIDTH));
-				// plprintf(COM2, "|%d%d:%x", index, i, new_bit);
-				// recent_sensor_index = (recent_sensor_index + 1) % SENSOR_RECENT;
+		char decoder_id = sensor_decoder_ids[decoder_index / 2];
+		char old_temp = old_data;
+		char new_temp = new_temp;
+		
+		// Found which sensor changed
+		int i;
+		unsigned int old_bit, new_bit;
+		for(i = 0; i < SENSOR_BYTE_SIZE; i++) {
+			old_bit = old_temp & SENSOR_BIT_MASK;
+			new_bit = new_temp & SENSOR_BIT_MASK;
+			// If changed
+			if(old_bit != new_bit) {
+				int sensor_id = (SENSOR_BYTE_SIZE * (decoder_index % 2)) + (SENSOR_BYTE_SIZE - i);
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
+				DEBUG(DB_SENSOR, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, old_bit, new_bit);
+				
+				// pushRecentSensor(decoder_id, sensor_id, new_bit);
 			}
+			old_temp = old_temp >> 1;
+			new_temp = new_temp >> 1;
 		}
 	}
-	
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + index, COLUMN_FIRST);
-	DEBUG(DB_SENSOR, "%c: 0x%x\n", sensor_ids[index / 2], new_data);
 }
 void collectSensorData() {
-	char sensor_new_data = '\0';
-	if(plgetc(COM1, &sensor_new_data) > 0) {
-		saveSensorData(sensor_data_next, sensor_new_data);
+	char new_data = '\0';
+	if(plgetc(COM1, &new_data) > 0) {
+		saveDecoderData(sensor_decoder_next, new_data);
 		
 		// If have load last sensor data in a row, request for sensor data again.
-		if(sensor_data_next == (SENSOR_TOTAL * SENSOR_BYTE_EACH) - 1) {
-			plputc(COM1, SENSOR_READ_MULTI + SENSOR_TOTAL);
-			DEBUG(DB_SENSOR, "Sent %d\n", sensor_data_next);
+		if(sensor_decoder_next == (SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH) - 1) {
+			plputc(COM1, SENSOR_READ_MULTI + SENSOR_DECODER_TOTAL);
+			DEBUG(DB_SENSOR, "Sent %d\n", sensor_decoder_next);
 		}
 		
-		sensor_data_next = (sensor_data_next + 1) % (SENSOR_TOTAL * SENSOR_BYTE_EACH);
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + SENSOR_TOTAL * SENSOR_BYTE_EACH, COLUMN_FIRST);
-		DEBUG(DB_SENSOR, "Next %d\n", sensor_data_next);
+		sensor_decoder_next = (sensor_decoder_next + 1) % (SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH);
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH, COLUMN_FIRST);
+		DEBUG(DB_SENSOR, "Next %d\n", sensor_decoder_next);
 	}
 }
 
@@ -366,7 +405,7 @@ void pollingLoop() {
 	user_input_size = 0;
 	user_input_buffer[user_input_size] = '\0';
 	
-	sensor_data_next = 0;
+	sensor_decoder_next = 0;
 	recent_sensor_index = 0;
 	
 	/* Initialize Sensor Data Request */
