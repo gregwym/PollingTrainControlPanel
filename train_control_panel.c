@@ -29,6 +29,7 @@
 #define LINE_BOTTOM 35
 
 #define COLUMN_FIRST 1
+#define COLUMN_SENSOR_WIDTH 4
 
 /* User Inputs */
 #define USER_INPUT_MAX 1000
@@ -37,15 +38,19 @@
 /* Train Control */
 #define SYSTEM_START 96
 #define SYSTEM_STOP 97
+
 #define TRAIN_REVERSE 15
+
 #define SWITCH_STR 33
 #define SWITCH_CUR 34
 #define SWITCH_OFF 32
+
 #define SENSOR_READ_ONE 192
 #define SENSOR_READ_MULTI 128
 #define SENSOR_TOTAL 5
 #define SENSOR_BYTE_EACH 2
 #define SENSOR_RECENT 5
+#define SENSOR_BIT_MASK 0x01
 
 /* Global Variable Declarations */
 unsigned int dbflags = 0;
@@ -286,13 +291,30 @@ void saveSensorData(unsigned int index, char new_data) {
 	// Save to sensor_data
 	char old_data = sensor_data[index];
 	sensor_data[index] = new_data;
+	
+	if(old_data != new_data) {
+		int i;
+		char old_bit, new_bit;
+		for(i = 0; i < 8; i++) {
+			old_bit = (old_data >> i) & SENSOR_BIT_MASK;
+			new_bit = (new_data >> i) & SENSOR_BIT_MASK;
+			if(old_bit != new_bit) {
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
+				DEBUG(DB_SENSOR, "#%d%d %x -> %x\n", index, 7 - i, old_bit, new_bit);
+				
+				// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + (recent_sensor_index * COLUMN_SENSOR_WIDTH));
+				// plprintf(COM2, "|%d%d:%x", index, i, new_bit);
+				// recent_sensor_index = (recent_sensor_index + 1) % SENSOR_RECENT;
+			}
+		}
+	}
+	
 	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + index, COLUMN_FIRST);
 	DEBUG(DB_SENSOR, "%d: 0x%x\n", index, new_data);
 }
 void collectSensorData() {
 	char sensor_new_data = '\0';
 	if(plgetc(COM1, &sensor_new_data) > 0) {
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
 		saveSensorData(sensor_data_next, sensor_new_data);
 		
 		// If have load last sensor data in a row, request for sensor data again.
