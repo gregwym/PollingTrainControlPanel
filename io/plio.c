@@ -57,30 +57,34 @@ void plflush( int channel ) {
 }
 
 int plsend( int channel ) {
-	int *flags;
-	char *data;
-	switch( channel ) {
-	case COM1:
-		flags = (int *)( UART1_BASE + UART_FLAG_OFFSET );
-		data = (char *)( UART1_BASE + UART_DATA_OFFSET );
-		break;
-	case COM2:
-		flags = (int *)( UART2_BASE + UART_FLAG_OFFSET );
-		data = (char *)( UART2_BASE + UART_DATA_OFFSET );
-		break;
-	default:
-		return -1;
-		break;
-	}
+	if(channel != COM1 && channel != COM2) return -1;
 	
 	// If something is waiting to be sent
 	if(buffer_send_index[channel] != buffer_save_index[channel]) {
 		
 		unsigned int actual_index = (channel * OUTPUT_BUFFER_SIZE) + buffer_send_index[channel];
 		char c = buffer[actual_index];
+		int *flags;
+		char *data;
 		
+		switch( channel ) {
+			case COM1:
+				flags = (int *)( UART1_BASE + UART_FLAG_OFFSET );
+				data = (char *)( UART1_BASE + UART_DATA_OFFSET );
+				// If COM1 UART not CTS, return
+				if( !( *flags & CTS_MASK ) ) return 3;
+				break;
+			case COM2:
+				flags = (int *)( UART2_BASE + UART_FLAG_OFFSET );
+				data = (char *)( UART2_BASE + UART_DATA_OFFSET );
+				break;
+			default:
+				return -1;
+				break;
+		}
 		// If UART FIFO full, return
 		if( ( *flags & TXFF_MASK ) ) return 2;
+		
 		*data = c;
 		buffer[actual_index] = '\0';
 		
