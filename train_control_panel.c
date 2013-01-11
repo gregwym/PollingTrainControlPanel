@@ -24,8 +24,8 @@
 
 #define LINE_ELAPSED_TIME 1
 #define LINE_LAST_COMMAND 2
-#define LINE_USER_INPUT 30
-#define LINE_DEBUG 32
+#define LINE_USER_INPUT 20
+#define LINE_DEBUG 25
 #define LINE_BOTTOM 35
 
 #define COLUMN_FIRST 1
@@ -41,6 +41,11 @@
 #define SWITCH_STR 33
 #define SWITCH_CUR 34
 #define SWITCH_OFF 32
+#define SENSOR_READ_ONE 192
+#define SENSOR_READ_MULTI 128
+#define SENSOR_TOTAL 5
+#define SENSOR_BYTE_EACH 2
+#define SENSOR_RECENT 5
 
 /* Global Variable Declarations */
 unsigned int dbflags = 0;
@@ -49,9 +54,13 @@ unsigned int previous_timer_value = 0;
 unsigned int timer_tick_remained = 0;
 unsigned int tenth_sec_elapsed = 0;
 
-char user_input_buffer[1000] = {'\0'};
+char user_input_buffer[USER_INPUT_MAX] = {'\0'};
 unsigned int user_input_size = 0;
-char user_input_char = '\0';
+
+char sensor_data[SENSOR_TOTAL * SENSOR_BYTE_EACH] = {};
+unsigned int sensor_data_next = 0;
+unsigned int recent_sensor[SENSOR_RECENT] = {};
+unsigned int recent_sensor_index = 0;
 
 /*
  * Hardware Register Manipulation
@@ -176,7 +185,7 @@ int handleUserCommand() {
 				break;
 			case 's':
 				DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
-				plputc(COM1, SYSTEM_START);
+				plputc(COM1, SYSTEM_STOP);
 				break;
 			default:
 				break;
@@ -224,6 +233,7 @@ int handleUserCommand() {
 }
 
 int handleUserInput() {
+	char user_input_char = '\0';
 	if(plgetc(COM2, &user_input_char) > 0 && user_input_size < USER_INPUT_MAX) {
 		
 		// Push or pop char from user_input_buffer
@@ -269,6 +279,34 @@ int handleUserInput() {
 	return 0;
 }
 
+/*
+ * Sensor Data Collection
+ */
+void saveSensorData(unsigned int index, char new_data) {
+	// Save to sensor_data
+	char old_data = sensor_data[index];
+	sensor_data[index] = new_data;
+	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + index, COLUMN_FIRST);
+	DEBUG(DB_SENSOR, "%d: 0x%x\n", index, new_data);
+}
+void collectSensorData() {
+	char sensor_new_data = '\0';
+	if(plgetc(COM1, &sensor_new_data) > 0) {
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
+		saveSensorData(sensor_data_next, sensor_new_data);
+		
+		// If have load last sensor data in a row, request for sensor data again.
+		if(sensor_data_next == (SENSOR_TOTAL * SENSOR_BYTE_EACH) - 1) {
+			plputc(COM1, SENSOR_READ_MULTI + SENSOR_TOTAL);
+			DEBUG(DB_SENSOR, "Sent %d\n", sensor_data_next);
+		}
+		
+		sensor_data_next = (sensor_data_next + 1) % (SENSOR_TOTAL * SENSOR_BYTE_EACH);
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + SENSOR_TOTAL * SENSOR_BYTE_EACH, COLUMN_FIRST);
+		DEBUG(DB_SENSOR, "Next %d\n", sensor_data_next);
+	}
+}
+
 /* 
  * Main Polling Loop
  */
@@ -280,11 +318,19 @@ void pollingLoop() {
 	
 	/* Initialize User Input Buffer */
 	user_input_size = 0;
-	user_input_char = '\0';
 	user_input_buffer[user_input_size] = '\0';
+	
+	sensor_data_next = 0;
+	recent_sensor_index = 0;
+	
+	/* Initialize Sensor Data Request */
+	plputc(COM1, SENSOR_READ_MULTI + SENSOR_TOTAL);
 		
 	/* Polling loop */
 	while(TRUE) {
+		/* Sensor: Collect and display data */
+		collectSensorData();
+		
 		/* Polling IO: Give it a chance to send out char */
 		plsend(COM1);
 		plsend(COM2);
@@ -303,7 +349,7 @@ int main(int argc, char* argv[]) {
 	char plio_buffer[CHANNEL_COUNT * OUTPUT_BUFFER_SIZE];
 	unsigned int plio_send_index[CHANNEL_COUNT];
 	unsigned int plio_save_index[CHANNEL_COUNT];
-	dbflags = DB_IO | /*DB_TIMER |*/ DB_USER_INPUT | DB_TRAIN_CTRL; // Debug Flags
+	dbflags = /*DB_IO | DB_TIMER | DB_USER_INPUT | DB_TRAIN_CTRL |*/ DB_SENSOR; // Debug Flags
 	
 	/* Initialize IO: setup buffer; BOTH: turn off fifo; COM1: speed to 2400, enable stp2 */
 	plbootstrap(plio_buffer, plio_send_index, plio_save_index);
