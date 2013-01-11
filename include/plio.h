@@ -53,6 +53,10 @@ int plsetspeed( int channel, int speed );
  */
 int plputc( int channel, char c );
 
+/* 
+ * Get a char from the buffer
+ * Return: -1 Unknown Channel, 0 Nothing Read, 1 got a char and saved into *c
+ */
 int plgetc( int channel, char *c );
 
 int plputx( int channel, char c );

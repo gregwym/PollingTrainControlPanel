@@ -71,21 +71,22 @@ int plsend( int channel ) {
 			case COM1:
 				flags = (int *)( UART1_BASE + UART_FLAG_OFFSET );
 				data = (char *)( UART1_BASE + UART_DATA_OFFSET );
-				// If COM1 UART not CTS, return
-				if( !( *flags & CTS_MASK ) || !( *flags & RXFE_MASK )) return 3;
+				// If UART FIFO full or COM1 UART not CTS, return
+				if( !( *flags & TXFF_MASK ) && ( *flags & CTS_MASK )) *data = c;
+				else return 3;
 				break;
 			case COM2:
 				flags = (int *)( UART2_BASE + UART_FLAG_OFFSET );
 				data = (char *)( UART2_BASE + UART_DATA_OFFSET );
+				// If UART FIFO full, return
+				if( !( *flags & TXFF_MASK ) ) *data = c;
+				else return 2;
 				break;
 			default:
 				return -1;
 				break;
 		}
-		// If UART FIFO full, return
-		if( ( *flags & TXFF_MASK ) ) return 2;
 		
-		*data = c;
 		buffer[actual_index] = '\0';
 		
 		// Stat data
@@ -122,7 +123,7 @@ int plsave( int channel, char c ) {
 	}
 	
 	// No more space in the buffer
-	bwprintf(COM2, "Polling IO: Channel %d buffer is full", channel);
+	bwprintf(COM2, "Polling IO: Channel %d buffer is full\n", channel);
 	return 0;
 }
 
