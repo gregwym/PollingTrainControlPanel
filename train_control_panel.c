@@ -188,11 +188,17 @@ int pushTrainCommand(char command, int delay, unsigned int pause) {
 		train_commands_buffer[train_commands_save_index].command = command;
 		train_commands_buffer[train_commands_save_index].delay = delay;
 		train_commands_buffer[train_commands_save_index].pause = pause;
+		
+		// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 3, COLUMN_FIRST);
+		// DEBUG(DB_TRAIN_CTRL, "Saved: %d %d %x\n", train_commands_buffer[train_commands_save_index].command, train_commands_buffer[train_commands_save_index].delay, train_commands_buffer[train_commands_save_index].pause);
+		
 		train_commands_save_index = next_index;
 		
 		return 1;
 	}
 	
+	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
+	DEBUG(DB_TRAIN_CTRL, "Command buffer full\n");
 	return 0;
 }
 
@@ -202,15 +208,21 @@ int popTrainCommand(unsigned int tenth_sec) {
 	if(train_commands_send_index != train_commands_save_index) {
 		if(train_commands_buffer[train_commands_send_index].delay > 0) {
 			train_commands_buffer[train_commands_send_index].delay -= tenth_sec;
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 4, COLUMN_FIRST);
+			DEBUG(DB_TRAIN_CTRL, "Delay: %d\n", train_commands_buffer[train_commands_send_index].delay);
 		}
 		if(train_commands_buffer[train_commands_send_index].delay <= 0) {
+			unsigned int next_index = (train_commands_send_index + 1) % TRAIN_COMMAND_BUFFER_MAX;
 			train_commands_pause = train_commands_buffer[train_commands_send_index].pause;
 			if(train_commands_pause) {
 				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
 				DEBUG(DB_TRAIN_CTRL, "Paused Send Command\n");
 			}
 			plputc(COM1, train_commands_buffer[train_commands_send_index].command);
-			unsigned int next_index = (train_commands_send_index + 1) % TRAIN_COMMAND_BUFFER_MAX;
+			
+			// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 3, COLUMN_FIRST);
+			// DEBUG(DB_TRAIN_CTRL, "Sent: %d %d %x\n", train_commands_buffer[train_commands_send_index].command, train_commands_buffer[train_commands_send_index].delay, train_commands_buffer[train_commands_send_index].pause);
+			
 			train_commands_send_index = next_index;
 			
 			return 1;
@@ -310,6 +322,10 @@ int handleUserCommand() {
 		pushTrainCommand(value, FALSE, FALSE);
 		pushTrainCommand(number, FALSE, FALSE);
 		pushTrainCommand(SWITCH_OFF, FALSE, FALSE); // Turn off the solenoid
+		// if(number == 15 || number == 31) {
+		// 	pushTrainCommand(value, 20, FALSE);
+		// 	pushTrainCommand(10, 20, FALSE);
+		// }
 		
 		return 0;
 	}
@@ -430,7 +446,7 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 		DEBUG(DB_SENSOR, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
 		
 		// Temporarily return here
-		return;
+		// return;
 				
 		char decoder_id = sensor_decoder_ids[decoder_index / 2];
 		char old_temp = old_data;
