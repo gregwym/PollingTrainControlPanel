@@ -72,7 +72,7 @@ int plsend( int channel ) {
 				flags = (int *)( UART1_BASE + UART_FLAG_OFFSET );
 				data = (char *)( UART1_BASE + UART_DATA_OFFSET );
 				// If UART FIFO full or COM1 UART not CTS, return
-				if( !( *flags & TXFF_MASK ) && ( *flags & CTS_MASK )) *data = c;
+				if( (!( *flags & TXFF_MASK )) && ( *flags & CTS_MASK )) *data = c;
 				else return 3;
 				break;
 			case COM2:
