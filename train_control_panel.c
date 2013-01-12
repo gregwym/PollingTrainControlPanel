@@ -48,6 +48,7 @@
 #define SWITCH_CUR 34
 #define SWITCH_OFF 32
 
+#define SENSOR_AUTO_RESET 192
 #define SENSOR_READ_ONE 192
 #define SENSOR_READ_MULTI 128
 #define SENSOR_DECODER_TOTAL 5
@@ -92,7 +93,7 @@ typedef struct SensorDatum {
 	unsigned int value;
 } SensorDatum;
 // SensorDatum recent_sensor_data[SENSOR_RECENT_TOTAL] = {};
-unsigned int recent_sensor_index = 0;
+unsigned int recent_sensor_next = 0;
 
 /*
  * Hardware Register Manipulation
@@ -402,28 +403,33 @@ void sensorBootstrap(){
 		}
 		plsend(COM2); // Send debug message chars
 	}
+	pushTrainCommand(SENSOR_AUTO_RESET, FALSE, FALSE);
 	sensorSendRead(); // Should be zero
 }
 
 void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {
 	// Push in reverse order
-	// int previous_sensor_index = recent_sensor_index;
-	recent_sensor_index = (recent_sensor_index + 1) % SENSOR_RECENT_TOTAL;
-	// recent_sensor_data[recent_sensor_index].decoder_id = decoder_id;
-	// recent_sensor_data[recent_sensor_index].sensor_id = sensor_id;
-	// recent_sensor_data[recent_sensor_index].value = value;
+	
+	// recent_sensor_data[recent_sensor_next].decoder_id = decoder_id;
+	// recent_sensor_data[recent_sensor_next].sensor_id = sensor_id;
+	// recent_sensor_data[recent_sensor_next].value = value;
+	// int current_sensor_index = recent_sensor_next;
+	// recent_sensor_next = (recent_sensor_next + 1) % SENSOR_RECENT_TOTAL;
 	
 	// Print
-	// int i = recent_sensor_index;
+	// int i = 0;
 	// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST);
 	// printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
-	// plprintf(COM2, "|%c%d:%x\t", (recent_sensor_data[i]).decoder_id, recent_sensor_data[i].sensor_id, recent_sensor_data[i].value);
-	// for(i = previous_sensor_index; i != recent_sensor_index; i = ((i + SENSOR_RECENT_TOTAL - 1) % SENSOR_RECENT_TOTAL)) {
+	// for(i = current_sensor_index; i != recent_sensor_next; i = ((i + SENSOR_RECENT_TOTAL - 1) % SENSOR_RECENT_TOTAL)) {
 	// 	plprintf(COM2, "|%c%d:%x\t", (recent_sensor_data[i]).decoder_id, recent_sensor_data[i].sensor_id, recent_sensor_data[i].value);
 	// }
+	// plprintf(COM2, "|%c%d:%x\t", (recent_sensor_data[i]).decoder_id, recent_sensor_data[i].sensor_id, recent_sensor_data[i].value);
 	
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + recent_sensor_index * COLUMN_SENSOR_WIDTH);
-	plprintf(COM2, "|%c%d:%d\t", decoder_id, sensor_id, value);
+	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + recent_sensor_next * COLUMN_SENSOR_WIDTH);
+	plprintf(COM2, "|%c%d    ", decoder_id, sensor_id);
+	recent_sensor_next = (recent_sensor_next + 1) % SENSOR_RECENT_TOTAL;
+	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + recent_sensor_next * COLUMN_SENSOR_WIDTH);
+	plprintf(COM2, "|-Next- ");
 }
 
 void saveDecoderData(unsigned int decoder_index, char new_data) {
@@ -504,7 +510,7 @@ void pollingLoop() {
 	user_input_buffer[user_input_size] = '\0';
 	
 	sensor_decoder_next = 0;
-	recent_sensor_index = 0;
+	recent_sensor_next = 0;
 	
 	/* Initialize Sensor Data Request */
 	sensorBootstrap();
