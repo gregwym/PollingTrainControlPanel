@@ -30,16 +30,18 @@
 #define LINE_BOTTOM 35
 
 #define COLUMN_FIRST 1
-#define COLUMN_SENSOR_WIDTH 4
+#define COLUMN_SENSOR_WIDTH 8
+#define COLUMN_SENSOR_DEBUG 60
 
 /* User Inputs */
-#define USER_INPUT_MAX 1000
+#define USER_INPUT_MAX 100
 #define USER_COMMAND_QUIT 1
 
 /* Train Control */
 #define SYSTEM_START 96
 #define SYSTEM_STOP 97
 
+#define TRAIN_COMMAND_BUFFER_MAX 100
 #define TRAIN_REVERSE 15
 
 #define SWITCH_STR 33
@@ -55,24 +57,40 @@
 #define SENSOR_BIT_MASK 0x01
 
 /* Global Variable Declarations */
+
+// Debug
 unsigned int dbflags = 0;
 
+// Timer
 unsigned int previous_timer_value = 0;
 unsigned int timer_tick_remained = 0;
 unsigned int tenth_sec_elapsed = 0;
 
+// User Input
 char user_input_buffer[USER_INPUT_MAX] = {'\0'};
 unsigned int user_input_size = 0;
+
+// Train Commands
+typedef struct TrainCommand {
+	char command;
+	int delay;
+	unsigned int pause;
+} TrainCommand;
+TrainCommand train_commands_buffer[TRAIN_COMMAND_BUFFER_MAX] = {};
+unsigned int train_commands_save_index = 0;
+unsigned int train_commands_send_index = 0;
+unsigned int train_commands_pause = 0;
+
+// Sensor Data
+char sensor_decoder_data[SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH] = {};
+char sensor_decoder_ids[SENSOR_DECODER_TOTAL] = {};
+unsigned int sensor_decoder_next = 0;
 
 typedef struct SensorDatum {
 	char decoder_id;
 	unsigned int sensor_id;
 	unsigned int value;
 } SensorDatum;
-
-char sensor_decoder_data[SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH] = {};
-char sensor_decoder_ids[SENSOR_DECODER_TOTAL] = {};
-unsigned int sensor_decoder_next = 0;
 SensorDatum recent_sensor_data[SENSOR_RECENT_TOTAL] = {};
 unsigned int recent_sensor_index = 0;
 
@@ -132,7 +150,7 @@ unsigned int getTimerValue(int timer_base) {
 	return value;
 }
 
-void handleTimeElapse() {
+unsigned int handleTimeElapse() {
 	unsigned int timer_value = getTimerValue(TIMER3_BASE);
 	unsigned int time_elapsed = previous_timer_value - timer_value;
 	
@@ -146,13 +164,66 @@ void handleTimeElapse() {
 	{
 		// Add elapsed time into remaining ticks, then convert to tenth-sec
 		timer_tick_remained += time_elapsed;
-		for(;timer_tick_remained >= 200; timer_tick_remained -= 200) tenth_sec_elapsed++;
+		unsigned int tenth_sec = timer_tick_remained / 200;
+		timer_tick_remained %= 200;
+		tenth_sec_elapsed += tenth_sec;
 		previous_timer_value = timer_value;
-	
+		
 		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_ELAPSED_TIME, COLUMN_FIRST);
 		plprintf(COM2, "Time elapsed: %d:%d,%d, timer value: 0x%x\n", tenth_sec_elapsed / 600, (tenth_sec_elapsed % 600) / 10, tenth_sec_elapsed % 10, timer_value);
 		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
+		
+		return tenth_sec;
 	}
+	
+	return 0;
+}
+
+/*
+ * Train Control
+ */
+int pushTrainCommand(char command, int delay, unsigned int pause) {
+	unsigned int next_index = (train_commands_save_index + 1) % TRAIN_COMMAND_BUFFER_MAX;
+	if(next_index != train_commands_send_index) {
+		train_commands_buffer[train_commands_save_index].command = command;
+		train_commands_buffer[train_commands_save_index].delay = delay;
+		train_commands_buffer[train_commands_save_index].pause = pause;
+		train_commands_save_index = next_index;
+		
+		return 1;
+	}
+	
+	return 0;
+}
+
+int popTrainCommand(unsigned int tenth_sec) {
+	if(train_commands_pause) return -1;
+	
+	if(train_commands_send_index != train_commands_save_index) {
+		if(train_commands_buffer[train_commands_send_index].delay > 0) {
+			train_commands_buffer[train_commands_send_index].delay -= tenth_sec;
+		}
+		if(train_commands_buffer[train_commands_send_index].delay <= 0) {
+			train_commands_pause = train_commands_buffer[train_commands_send_index].pause;
+			if(train_commands_pause) {
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
+				DEBUG(DB_TRAIN_CTRL, "Paused Send Command\n");
+			}
+			plputc(COM1, train_commands_buffer[train_commands_send_index].command);
+			unsigned int next_index = (train_commands_send_index + 1) % TRAIN_COMMAND_BUFFER_MAX;
+			train_commands_send_index = next_index;
+			
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
+void continueTrainCommand() {
+	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
+	DEBUG(DB_TRAIN_CTRL, "Continue Send Command\n");
+	train_commands_pause = FALSE;
 }
 
 /*
@@ -195,11 +266,11 @@ int handleUserCommand() {
 		switch(user_input_buffer[0]) {
 			case 'g':
 				DEBUG(DB_TRAIN_CTRL, "Sending start\n");
-				plputc(COM1, SYSTEM_START);
+				pushTrainCommand(SYSTEM_START, FALSE, FALSE);
 				break;
 			case 's':
 				DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
-				plputc(COM1, SYSTEM_STOP);
+				pushTrainCommand(SYSTEM_STOP, FALSE, FALSE);
 				break;
 			default:
 				break;
@@ -219,7 +290,7 @@ int handleUserCommand() {
 		str = str2token(str, token);
 		unsigned char number = atoi(token, 10);
 		
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 1, COLUMN_FIRST);
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
 		DEBUG(DB_USER_INPUT, "User Input: Arg1 0x%x\n", number);
 		str = str2token(str, token);
 		unsigned char value = 0;
@@ -227,18 +298,18 @@ int handleUserCommand() {
 			case 'r':
 			case 't':
 				value = (command[0] == 'r') ? TRAIN_REVERSE : atoi(token, 10);
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
-				DEBUG(DB_USER_INPUT, "User Input: Changing train #%u speed to %u\n", number, value);
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
+				DEBUG(DB_TRAIN_CTRL, "Changing train #%u speed to %u\n", number, value);
 				break;
 			case 's':
 				value = (token[0] == 'S') ? SWITCH_STR : SWITCH_CUR;
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 2, COLUMN_FIRST);
-				DEBUG(DB_USER_INPUT, "User Input: Assigning switch #%d direction to %s\n", number, token);
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
+				DEBUG(DB_TRAIN_CTRL, "Assigning switch #%d direction to %s\n", number, token);
 				break;
 		}
-		plputc(COM1, value);
-		plputc(COM1, number);
-		plputc(COM1, SWITCH_OFF); // Turn off the solenoid
+		pushTrainCommand(value, FALSE, FALSE);
+		pushTrainCommand(number, FALSE, FALSE);
+		pushTrainCommand(SWITCH_OFF, FALSE, FALSE); // Turn off the solenoid
 		
 		return 0;
 	}
@@ -248,21 +319,24 @@ int handleUserCommand() {
 
 int handleUserInput() {
 	char user_input_char = '\0';
-	if(plgetc(COM2, &user_input_char) > 0 && user_input_size < USER_INPUT_MAX) {
+	if(plgetc(COM2, &user_input_char) > 0) {
 		
 		// Push or pop char from user_input_buffer
-		if(user_input_char != ASCI_BACKSPACE) {
+		if(user_input_char == ASCI_BACKSPACE && user_input_size > 0){
+			user_input_size--;
+			user_input_buffer[user_input_size] = '\0';
+			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
+			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
+		}
+		else if(user_input_char != ASCI_BACKSPACE && user_input_size < (USER_INPUT_MAX - 1)) {
 			user_input_buffer[user_input_size] = user_input_char;
 			user_input_size++;
 			user_input_buffer[user_input_size] = '\0';
 			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size);
 			plputc(COM2, user_input_char);
 		}
-		else if(user_input_size > 0){
-			user_input_size--;
-			user_input_buffer[user_input_size] = '\0';
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
-			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
+		else {
+			return -1;
 		}
 		
 		// If is EOL or buffer full
@@ -296,6 +370,14 @@ int handleUserInput() {
 /*
  * Sensor Data Collection
  */
+
+void sensorSendRead(){
+	char command = SENSOR_READ_ONE + (sensor_decoder_next / SENSOR_BYTE_EACH) + 1;
+	pushTrainCommand(command, FALSE, TRUE);
+	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH + 1, COLUMN_SENSOR_DEBUG);
+	DEBUG(DB_SENSOR, "Req %d\n", command);
+}
+
 void sensorBootstrap(){
 	int i, j;
 	for(i = 0; i < SENSOR_DECODER_TOTAL; i++) {
@@ -305,21 +387,19 @@ void sensorBootstrap(){
 		}
 	}
 	
-	/* DEBUG Sensor Bootstrap require bwprintf */
-	// bwprintf(COM2, "%c[%d;%d%s", ASCI_ESC, LINE_DEBUG, COLUMN_FIRST, ASCI_CURSOR_TO);
-	// bwprintf(COM2, "Sensor: Booting\n");
+	DEBUG(DB_SENSOR, "%c[%d;%d%s", ASCI_ESC, LINE_DEBUG, COLUMN_FIRST, COLUMN_SENSOR_DEBUG);
+	DEBUG(DB_SENSOR, "Sensor: Booting\n");
 	while((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, CTS_MASK)) || 
 	      (!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, TXFE_MASK)) || 
 	      (!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, RXFE_MASK))) {
-		// bwprintf(COM2, ".");
-		if((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, RXFE_MASK))) {
-			// char c = 
-			bwgetc(COM1);
-			// bwprintf(COM2, "Sensor: Consuming sensor data 0x%x\n", c);
+		DEBUG(DB_SENSOR, ".");
+		char c;
+		if(plgetc(COM1, &c) > 0) {
+			DEBUG(DB_SENSOR, "Sensor: Consuming sensor data 0x%x\n", c);
 		}
+		plsend(COM2); // Send debug message chars
 	}
-	plputc(COM1, SENSOR_READ_MULTI + SENSOR_DECODER_TOTAL);
-	// bwprintf(COM2, "Sensor: Sent read requrest\n");
+	sensorSendRead(); // Should be zero
 }
 
 void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {
@@ -345,8 +425,8 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 	sensor_decoder_data[decoder_index] = new_data;
 	
 	// If changed
-	if(/*FALSE*/ old_data != new_data) {
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + decoder_index, COLUMN_FIRST);
+	if(old_data != new_data) {
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + decoder_index, COLUMN_SENSOR_DEBUG);
 		DEBUG(DB_SENSOR, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
 		
 		// Temporarily return here
@@ -365,7 +445,7 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 			// If changed
 			if(old_bit != new_bit) {
 				int sensor_id = (SENSOR_BYTE_SIZE * (decoder_index % 2)) + (SENSOR_BYTE_SIZE - i);
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
+				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_SENSOR_DEBUG);
 				DEBUG(DB_SENSOR, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, old_bit, new_bit);
 				
 				// pushRecentSensor(decoder_id, sensor_id, new_bit);
@@ -375,20 +455,28 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 		}
 	}
 }
+
 void collectSensorData() {
 	char new_data = '\0';
 	if(plgetc(COM1, &new_data) > 0) {
+		// Save the data
 		saveDecoderData(sensor_decoder_next, new_data);
 		
-		// If have load last sensor data in a row, request for sensor data again.
-		if(sensor_decoder_next == (SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH) - 1) {
-			plputc(COM1, SENSOR_READ_MULTI + SENSOR_DECODER_TOTAL);
-			DEBUG(DB_SENSOR, "Sent %d\n", sensor_decoder_next);
-		}
-		
+		// Increment the counter
 		sensor_decoder_next = (sensor_decoder_next + 1) % (SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH);
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH, COLUMN_FIRST);
-		DEBUG(DB_SENSOR, "Next %d\n", sensor_decoder_next);
+		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH, COLUMN_SENSOR_DEBUG);
+		DEBUG(DB_SENSOR, "N %d\n", sensor_decoder_next);
+		
+		// If end receiving last chunk of data, stop pausing the train commands
+		if((sensor_decoder_next % 2) == 0 && train_commands_pause) {
+			continueTrainCommand();
+		}
+	}
+	
+	// Else if end receiving last chunk of data and not pausing
+	else if((sensor_decoder_next % 2) == 0 && !train_commands_pause){
+		// Request for another chunk of data
+		sensorSendRead();
 	}
 }
 
@@ -400,6 +488,11 @@ void pollingLoop() {
 	previous_timer_value = getTimerValue(TIMER3_BASE);
 	timer_tick_remained = 0;
 	tenth_sec_elapsed = 0;
+	
+	/* Initialize Train Command Buffer */
+	train_commands_save_index = 0;
+	train_commands_send_index = 0;
+	train_commands_pause = 0;
 	
 	/* Initialize User Input Buffer */
 	user_input_size = 0;
@@ -421,7 +514,10 @@ void pollingLoop() {
 		plsend(COM2);
 		
 		/* Timer: Calculate and display time elapsed */
-		handleTimeElapse();
+		unsigned int tenth_sec = handleTimeElapse();
+		
+		/* Try to pop train commands from the buffer */
+		popTrainCommand(tenth_sec);
 		
 		/* User Input */
 		if(handleUserInput() == USER_COMMAND_QUIT) break;
@@ -434,7 +530,7 @@ int main(int argc, char* argv[]) {
 	char plio_buffer[CHANNEL_COUNT * OUTPUT_BUFFER_SIZE];
 	unsigned int plio_send_index[CHANNEL_COUNT];
 	unsigned int plio_save_index[CHANNEL_COUNT];
-	dbflags = /*DB_IO | DB_TIMER | DB_USER_INPUT | DB_TRAIN_CTRL |*/ DB_SENSOR; // Debug Flags
+	dbflags = DB_TRAIN_CTRL | DB_SENSOR /*DB_IO | DB_TIMER | DB_USER_INPUT |  | */; // Debug Flags
 	
 	/* Initialize IO: setup buffer; BOTH: turn off fifo; COM1: speed to 2400, enable stp2 */
 	plbootstrap(plio_buffer, plio_send_index, plio_save_index);
@@ -443,6 +539,7 @@ int main(int argc, char* argv[]) {
 	plsetspeed(COM1, 2400);
 	setRegisterBit(UART1_BASE, UART_LCRH_OFFSET, STP2_MASK, TRUE);
 	
+	// Clear the screen
 	printAsciControl(COM2, ASCI_CLEAR_SCREEN, NO_ARG, NO_ARG);
 	
 	/* Verifiying COM1's Configuration: nothing when debug flag is turned off */
