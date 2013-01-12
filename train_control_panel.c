@@ -189,16 +189,14 @@ int pushTrainCommand(char command, int delay, unsigned int pause) {
 		train_commands_buffer[train_commands_save_index].delay = delay;
 		train_commands_buffer[train_commands_save_index].pause = pause;
 		
-		// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 3, COLUMN_FIRST);
-		// DEBUG(DB_TRAIN_CTRL, "Saved: %d %d %x\n", train_commands_buffer[train_commands_save_index].command, train_commands_buffer[train_commands_save_index].delay, train_commands_buffer[train_commands_save_index].pause);
+		// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + 3, COLUMN_FIRST, "Saved: %d %d %x\n", train_commands_buffer[train_commands_save_index].command, train_commands_buffer[train_commands_save_index].delay, train_commands_buffer[train_commands_save_index].pause);
 		
 		train_commands_save_index = next_index;
 		
 		return 1;
 	}
 	
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
-	DEBUG(DB_TRAIN_CTRL, "Command buffer full\n");
+	DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Command buffer full\n");
 	return 0;
 }
 
@@ -208,20 +206,17 @@ int popTrainCommand(unsigned int tenth_sec) {
 	if(train_commands_send_index != train_commands_save_index) {
 		if(train_commands_buffer[train_commands_send_index].delay > 0) {
 			train_commands_buffer[train_commands_send_index].delay -= tenth_sec;
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 4, COLUMN_FIRST);
-			DEBUG(DB_TRAIN_CTRL, "Delay: %d\n", train_commands_buffer[train_commands_send_index].delay);
+			DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + 4, COLUMN_FIRST, "Delay: %d\n", train_commands_buffer[train_commands_send_index].delay);
 		}
 		if(train_commands_buffer[train_commands_send_index].delay <= 0) {
 			unsigned int next_index = (train_commands_send_index + 1) % TRAIN_COMMAND_BUFFER_MAX;
 			train_commands_pause = train_commands_buffer[train_commands_send_index].pause;
 			if(train_commands_pause) {
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
-				DEBUG(DB_TRAIN_CTRL, "Paused Send Command\n");
+				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Paused Send Command\n");
 			}
 			plputc(COM1, train_commands_buffer[train_commands_send_index].command);
 			
-			// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + 3, COLUMN_FIRST);
-			// DEBUG(DB_TRAIN_CTRL, "Sent: %d %d %x\n", train_commands_buffer[train_commands_send_index].command, train_commands_buffer[train_commands_send_index].delay, train_commands_buffer[train_commands_send_index].pause);
+			// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + 3, COLUMN_FIRST, "Sent: %d %d %x\n", train_commands_buffer[train_commands_send_index].command, train_commands_buffer[train_commands_send_index].delay, train_commands_buffer[train_commands_send_index].pause);
 			
 			train_commands_send_index = next_index;
 			
@@ -233,8 +228,7 @@ int popTrainCommand(unsigned int tenth_sec) {
 }
 
 void continueTrainCommand() {
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_FIRST);
-	DEBUG(DB_TRAIN_CTRL, "Continue Send Command\n");
+	DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Continue Send Command\n");
 	train_commands_pause = FALSE;
 }
 
@@ -277,11 +271,11 @@ int handleUserCommand() {
 	if(user_input_size == 2) {
 		switch(user_input_buffer[0]) {
 			case 'g':
-				DEBUG(DB_TRAIN_CTRL, "Sending start\n");
+				DEBUG(DB_TRAIN_CTRL, "Starting\n");
 				pushTrainCommand(SYSTEM_START, FALSE, FALSE);
 				break;
 			case 's':
-				DEBUG(DB_TRAIN_CTRL, "Sending stop\n");
+				DEBUG(DB_TRAIN_CTRL, "Stoping\n");
 				pushTrainCommand(SYSTEM_STOP, FALSE, FALSE);
 				break;
 			default:
@@ -295,28 +289,24 @@ int handleUserCommand() {
 	command[0] = '\0';
 	token[0] = '\0';
 	str = str2token(str, command);
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-	DEBUG(DB_USER_INPUT, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
+	DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
 	
 	if(strcmp(command, "tr") == 0 || strcmp(command, "rv") == 0 || strcmp(command, "sw") == 0) {
 		str = str2token(str, token);
 		unsigned char number = atoi(token, 10);
 		
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-		DEBUG(DB_USER_INPUT, "User Input: Arg1 0x%x\n", number);
+		DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Arg1 0x%x\n", number);
 		str = str2token(str, token);
 		unsigned char value = 0;
 		switch(command[0]) {
 			case 'r':
 			case 't':
 				value = (command[0] == 'r') ? TRAIN_REVERSE : atoi(token, 10);
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-				DEBUG(DB_TRAIN_CTRL, "Changing train #%u speed to %u\n", number, value);
+				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "Changing train #%u speed to %u\n", number, value);
 				break;
 			case 's':
 				value = (token[0] == 'S') ? SWITCH_STR : SWITCH_CUR;
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-				DEBUG(DB_TRAIN_CTRL, "Assigning switch #%d direction to %s\n", number, token);
+				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "Assigning switch #%d direction to %s\n", number, token);
 				break;
 		}
 		pushTrainCommand(value, FALSE, FALSE);
@@ -361,8 +351,7 @@ int handleUserInput() {
 			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, COLUMN_FIRST);
 			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 			
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-			DEBUG(DB_USER_INPUT, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
+			DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
 			// If is q, quit
 			if(user_input_size == 2 && user_input_buffer[0] == 'q') {
 				return USER_COMMAND_QUIT;
@@ -390,8 +379,7 @@ int handleUserInput() {
 void sensorSendRead(){
 	char command = SENSOR_READ_ONE + (sensor_decoder_next / SENSOR_BYTE_EACH) + 1;
 	pushTrainCommand(command, FALSE, TRUE);
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH + 1, COLUMN_SENSOR_DEBUG);
-	DEBUG(DB_SENSOR, "Req %d\n", command);
+	DEBUG_JMP(DB_SENSOR, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH + 1, COLUMN_SENSOR_DEBUG, "Req %d\n", command);
 }
 
 void sensorBootstrap(){
@@ -403,8 +391,7 @@ void sensorBootstrap(){
 		}
 	}
 	
-	DEBUG(DB_SENSOR, "%c[%d;%d%s", ASCI_ESC, LINE_DEBUG, COLUMN_FIRST, COLUMN_SENSOR_DEBUG);
-	DEBUG(DB_SENSOR, "Sensor: Booting\n");
+	DEBUG_JMP(DB_SENSOR, LINE_DEBUG, COLUMN_FIRST, "Sensor: Booting\n");
 	while((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, CTS_MASK)) || 
 	      (!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, TXFE_MASK)) || 
 	      (!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, RXFE_MASK))) {
@@ -442,8 +429,7 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 	
 	// If changed
 	if(old_data != new_data) {
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + decoder_index, COLUMN_SENSOR_DEBUG);
-		DEBUG(DB_SENSOR, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
+		DEBUG_JMP(DB_SENSOR, LINE_DEBUG + decoder_index, COLUMN_SENSOR_DEBUG, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
 		
 		// Temporarily return here
 		// return;
@@ -461,8 +447,7 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 			// If changed
 			if(old_bit != new_bit) {
 				int sensor_id = (SENSOR_BYTE_SIZE * (decoder_index % 2)) + (SENSOR_BYTE_SIZE - i);
-				printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG - 1, COLUMN_SENSOR_DEBUG);
-				DEBUG(DB_SENSOR, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, old_bit, new_bit);
+				DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_SENSOR_DEBUG, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, old_bit, new_bit);
 				
 				// pushRecentSensor(decoder_id, sensor_id, new_bit);
 			}
@@ -480,8 +465,7 @@ void collectSensorData() {
 		
 		// Increment the counter
 		sensor_decoder_next = (sensor_decoder_next + 1) % (SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH);
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH, COLUMN_SENSOR_DEBUG);
-		DEBUG(DB_SENSOR, "N %d\n", sensor_decoder_next);
+		DEBUG_JMP(DB_SENSOR, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH, COLUMN_SENSOR_DEBUG, "N %d\n", sensor_decoder_next);
 		
 		// If end receiving last chunk of data, stop pausing the train commands
 		if((sensor_decoder_next % 2) == 0 && train_commands_pause) {
@@ -559,8 +543,7 @@ int main(int argc, char* argv[]) {
 	printAsciControl(COM2, ASCI_CLEAR_SCREEN, NO_ARG, NO_ARG);
 	
 	/* Verifiying COM1's Configuration: nothing when debug flag is turned off */
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_DEBUG, COLUMN_FIRST);
-	DEBUG(DB_IO, "COM1 LCRH: 0x%x\n", getRegister(UART1_BASE, UART_LCRH_OFFSET)); // 0x68
+	DEBUG_JMP(DB_IO, LINE_DEBUG, COLUMN_FIRST, "COM1 LCRH: 0x%x\n", getRegister(UART1_BASE, UART_LCRH_OFFSET)); // 0x68
 	DEBUG(DB_IO, "COM1 LCRM: 0x%x\n", getRegister(UART1_BASE, UART_LCRM_OFFSET)); // 0x0
 	DEBUG(DB_IO, "COM1 LCRL: 0x%x\n", getRegister(UART1_BASE, UART_LCRL_OFFSET)); // 0xbf
 	DEBUG(DB_IO, "COM1 CTRL: 0x%x\n", getRegister(UART1_BASE, UART_CTLR_OFFSET)); // 0x1

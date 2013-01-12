@@ -20,10 +20,9 @@
 // #define DB_NETFS       0x400
 // #define DB_KMALLOC     0x800
 
-#if 0
-#define DEBUG(d, fmt, ...) (((dbflags) & (d)) ? plprintf(COM2, fmt, __VA_ARGS__) : 0)
-#else
+
 #define DEBUG(d, fmt, args...) (((dbflags) & (d)) ? plprintf(COM2, fmt, ##args) : 0)
-#endif
+#define DEBUG_JMP(d, line, column, fmt, args...) (((dbflags) & (d)) ? printAsciControl(COM2, ASCI_CURSOR_TO, line, column), plprintf(COM2, fmt, ##args) : 0)
+    
 
 #endif // __DEBUG_H__
