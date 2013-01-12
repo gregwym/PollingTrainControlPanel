@@ -428,34 +428,35 @@ void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int valu
 
 void saveDecoderData(unsigned int decoder_index, char new_data) {
 	// Save to sensor_decoder_data
-	char old_data = sensor_decoder_data[decoder_index];
-	sensor_decoder_data[decoder_index] = new_data;
+	// char old_data = sensor_decoder_data[decoder_index];
+	// sensor_decoder_data[decoder_index] = new_data;
 	
 	// If changed
-	if(old_data != new_data) {
+	// if(old_data != new_data) {
+	if(new_data) {
 		DEBUG_JMP(DB_SENSOR, LINE_DEBUG + decoder_index, COLUMN_SENSOR_DEBUG, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
 		
 		// Temporarily return here
 		// return;
 				
 		char decoder_id = sensor_decoder_ids[decoder_index / 2];
-		char old_temp = old_data;
-		char new_temp = new_temp;
+		// char old_temp = old_data;
+		char new_temp = new_data;
 		
 		// Found which sensor changed
 		int i;
-		unsigned int old_bit, new_bit;
+		unsigned int /* old_bit, */new_bit;
 		for(i = 0; i < SENSOR_BYTE_SIZE; i++) {
-			old_bit = old_temp & SENSOR_BIT_MASK;
+			// old_bit = old_temp & SENSOR_BIT_MASK;
 			new_bit = new_temp & SENSOR_BIT_MASK;
 			// If changed
-			if(old_bit != new_bit) {
+			if(/*old_bit != */new_bit) {
 				int sensor_id = (SENSOR_BYTE_SIZE * (decoder_index % 2)) + (SENSOR_BYTE_SIZE - i);
-				DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_SENSOR_DEBUG, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, old_bit, new_bit);
+				DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_SENSOR_DEBUG, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, 0 /*old_bit*/, new_bit);
 				
 				pushRecentSensor(decoder_id, sensor_id, new_bit);
 			}
-			old_temp = old_temp >> 1;
+			// old_temp = old_temp >> 1;
 			new_temp = new_temp >> 1;
 		}
 	}
