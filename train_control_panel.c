@@ -26,15 +26,16 @@
 #define NO_ARG 0xffffffff
 
 #define LINE_ELAPSED_TIME 1
-#define LINE_LAST_COMMAND 2
-#define LINE_RECENT_SENSOR 3
+#define LINE_LAST_COMMAND 3
+#define LINE_RECENT_SENSOR 4
 #define LINE_USER_INPUT 20
 #define LINE_DEBUG 25
 #define LINE_BOTTOM 35
 
 #define COLUMN_FIRST 1
 #define COLUMN_WIDTH 8
-#define COLUMN_ELAPSED_TIME 55
+#define COLUMN_VALUES 17
+#define COLUMN_ELAPSED_TIME 70
 #define COLUMN_SENSOR_DEBUG 60
 
 /* User Inputs */
@@ -52,6 +53,7 @@
 #define TRAIN_COMMAND_DELAY 5
 #define TRAIN_REVERSE 15
 #define TRAIN_REVERSE_DELAY 100
+#define TRAIN_FUNCTION_BASE 16
 
 #define SWITCH_STR 33
 #define SWITCH_CUR 34
@@ -144,7 +146,18 @@ inline void moveToUserInput() {
 	moveCursorTo(LINE_USER_INPUT, user_input_size + 1);
 }
 
+inline void printLineDivider() {
+	plprintf(COM2, "----------------------------------------------------------------------------------------\n");
+}
+
 void initializeScreen() {
+	printAsciControl(COM2, ASCI_CLEAR_SCREEN, NO_ARG, NO_ARG);
+	moveCursorTo(LINE_ELAPSED_TIME, COLUMN_FIRST);
+	plprintf(COM2, "Märklin Digital Train Control Panel                  Time elapsed: \n");
+	printLineDivider();
+	plprintf(COM2, "Last Command  | \n");
+	plprintf(COM2, "Recent Sensor | \n");
+	printLineDivider();
 	
 }
 
@@ -189,7 +202,7 @@ unsigned int handleTimeElapse() {
 		previous_timer_value = timer_value;
 		
 		moveCursorTo(LINE_ELAPSED_TIME, COLUMN_ELAPSED_TIME);
-		plprintf(COM2, "Time elapsed: %d:%d.%d", (timer_tick / TIMER_CLOCK_BASE) / 600, ((timer_tick / TIMER_CLOCK_BASE) % 600) / 10, (timer_tick / TIMER_CLOCK_BASE) % 10);
+		plprintf(COM2, "%d:%d.%d", (timer_tick / TIMER_CLOCK_BASE) / 600, ((timer_tick / TIMER_CLOCK_BASE) % 600) / 10, (timer_tick / TIMER_CLOCK_BASE) % 10);
 		moveToUserInput();
 		
 		return tick_elapsed;
@@ -298,7 +311,7 @@ int atoi(const char *str, int base) {
 	return (sign * n);
 }
 
-// Return: -1 Invalid command; 1 System command; 0 Normal command
+// Return: -1 Invalid command; 1 System command; 2 Normal command
 int handleUserCommand() {
 	// Single char command
 	if(user_input_size == 2) {
@@ -322,35 +335,40 @@ int handleUserCommand() {
 	command[0] = '\0';
 	token[0] = '\0';
 	str = str2token(str, command, USER_COMMAND_TOKEN_MAX);
-	DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
+	DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG + 1, COLUMN_FIRST, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
 	
 	if(strcmp(command, "tr") == 0 || strcmp(command, "rv") == 0 || strcmp(command, "sw") == 0) {
 		str = str2token(str, token, USER_COMMAND_TOKEN_MAX);
+		if(token[0] == '\0') return -1;
 		unsigned char number = atoi(token, 10);
 		
-		DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Arg1 0x%x\n", number);
+		DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG + 2, COLUMN_FIRST, "User Input: Arg1 0x%x\n", number);
 		str = str2token(str, token, USER_COMMAND_TOKEN_MAX);
 		unsigned char value = 0;
 		switch(command[0]) {
 			case 'r':
 			case 't':
+				if(command[0] == 't' && token[0] == '\0') return -1;
 				value = (command[0] == 'r') ? TRAIN_REVERSE : atoi(token, 10);
 				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "#%u Speed %u\n", number, value);
 				break;
 			case 's':
+				if(token[0] != 'S' && token[0] != 'C') return -1;
 				value = (token[0] == 'S') ? SWITCH_STR : SWITCH_CUR;
 				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "#%d Direct %s\n", number, token);
 				break;
+			default:
+				return -1;
 		}
 		pushTrainCommand(value, TRAIN_COMMAND_DELAY, FALSE);
 		pushTrainCommand(number, FALSE, FALSE);
-		if(value == 15 || value == 31) {
+		if(value == TRAIN_REVERSE || value == (TRAIN_REVERSE + TRAIN_FUNCTION_BASE)) {
 			pushTrainCommand(25, TRAIN_REVERSE_DELAY, FALSE);
 			pushTrainCommand(number, FALSE, FALSE);
 		}
 		pushTrainCommand(SWITCH_OFF, TRAIN_COMMAND_DELAY, FALSE); // Turn off the solenoid
 		
-		return 0;
+		return 2;
 	}
 	
 	return -1;
@@ -379,23 +397,24 @@ int handleUserInput() {
 		}
 		
 		// If is EOL or buffer full
-		if(user_input_char == '\n' || user_input_char == '\r' || user_input_size == USER_INPUT_MAX) {
+		if(user_input_char == '\n' || user_input_char == '\r' || user_input_size >= USER_INPUT_MAX) {
+			DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
+						
 			// Clear the input line
 			moveCursorTo(LINE_USER_INPUT, COLUMN_FIRST);
 			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 			
-			DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
 			// If is q, quit
 			if(user_input_size == 2 && user_input_buffer[0] == 'q') {
 				return USER_COMMAND_QUIT;
 			}
 			
-			handleUserCommand();
+			int command_result = handleUserCommand();
 			
 			// Send to last command
-			moveCursorTo(LINE_LAST_COMMAND, COLUMN_FIRST);
+			moveCursorTo(LINE_LAST_COMMAND, COLUMN_VALUES);
 			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
-			plputstr(COM2, user_input_buffer);
+			(command_result > 0 ? plputstr(COM2, user_input_buffer) : plprintf(COM2, "Invalid Command: %s", user_input_buffer));
 			
 			// Reset input buffer
 			user_input_buffer[0] = '\0';
@@ -450,11 +469,13 @@ void requestSensorData(){
 }
 
 void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {	
-	moveCursorTo(LINE_RECENT_SENSOR, COLUMN_FIRST + sensor_recent_next * COLUMN_WIDTH);
-	plprintf(COM2, "|%c%d    ", decoder_id, sensor_id);
+	moveCursorTo(LINE_RECENT_SENSOR, COLUMN_VALUES + sensor_recent_next * COLUMN_WIDTH);
+	plprintf(COM2, "%c%d    ", decoder_id, sensor_id);
+	if((sensor_id / 10) == 0) plputc(COM2, ' ');
+	plputc(COM2, '|');
 	sensor_recent_next = (sensor_recent_next + 1) % SENSOR_RECENT_TOTAL;
-	moveCursorTo(LINE_RECENT_SENSOR, COLUMN_FIRST + sensor_recent_next * COLUMN_WIDTH);
-	plprintf(COM2, "|-Next- ");
+	moveCursorTo(LINE_RECENT_SENSOR, COLUMN_VALUES + sensor_recent_next * COLUMN_WIDTH);
+	plprintf(COM2, "-Next- |");
 }
 
 void saveDecoderData(unsigned int decoder_index, char new_data) {
@@ -578,8 +599,8 @@ int main(int argc, char* argv[]) {
 	plsetspeed(COM1, 2400);
 	setRegisterBit(UART1_BASE, UART_LCRH_OFFSET, STP2_MASK, TRUE);
 	
-	// Clear the screen
-	printAsciControl(COM2, ASCI_CLEAR_SCREEN, NO_ARG, NO_ARG);
+	/* Initialize the screen */
+	initializeScreen();
 	
 	/* Verifiying COM1's Configuration: nothing when debug flag is turned off */
 	DEBUG_JMP(DB_IO, LINE_DEBUG, COLUMN_FIRST, "COM1 LCRH: 0x%x\n", getRegister(UART1_BASE, UART_LCRH_OFFSET)); // 0x68

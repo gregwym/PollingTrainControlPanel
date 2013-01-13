@@ -29,7 +29,7 @@ typedef char *va_list;
 #endif // __VA_LIST_H__
 
 #define CHANNEL_COUNT	2
-#define OUTPUT_BUFFER_SIZE 10000
+#define OUTPUT_BUFFER_SIZE 20000
 
 void plstat();
 
