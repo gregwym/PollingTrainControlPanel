@@ -33,7 +33,8 @@
 #define LINE_BOTTOM 35
 
 #define COLUMN_FIRST 1
-#define COLUMN_SENSOR_WIDTH 8
+#define COLUMN_WIDTH 8
+#define COLUMN_ELAPSED_TIME 55
 #define COLUMN_SENSOR_DEBUG 60
 
 /* User Inputs */
@@ -135,6 +136,18 @@ void printAsciControl(int channel, char *control, int arg1, int arg2) {
 	plprintf(channel, "%s", control);
 }
 
+inline void moveCursorTo(int line, int column) {
+	printAsciControl(COM2, ASCI_CURSOR_TO, line, column);
+}
+
+inline void moveToUserInput() {
+	moveCursorTo(LINE_USER_INPUT, user_input_size + 1);
+}
+
+void initializeScreen() {
+	
+}
+
 /* 
  * Timer Control
  */
@@ -175,9 +188,9 @@ unsigned int handleTimeElapse() {
 		timer_tick += tick_elapsed;
 		previous_timer_value = timer_value;
 		
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_ELAPSED_TIME, COLUMN_FIRST);
-		plprintf(COM2, "Time elapsed: %d:%d.%d Timer: 0x%x\n", (timer_tick / TIMER_CLOCK_BASE) / 600, ((timer_tick / TIMER_CLOCK_BASE) % 600) / 10, (timer_tick / TIMER_CLOCK_BASE) % 10, timer_value);
-		printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
+		moveCursorTo(LINE_ELAPSED_TIME, COLUMN_ELAPSED_TIME);
+		plprintf(COM2, "Time elapsed: %d:%d.%d", (timer_tick / TIMER_CLOCK_BASE) / 600, ((timer_tick / TIMER_CLOCK_BASE) % 600) / 10, (timer_tick / TIMER_CLOCK_BASE) % 10);
+		moveToUserInput();
 		
 		return tick_elapsed;
 	}
@@ -351,14 +364,14 @@ int handleUserInput() {
 		if(user_input_char == ASCI_BACKSPACE && user_input_size > 0){
 			user_input_size--;
 			user_input_buffer[user_input_size] = '\0';
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size + 1);
+			moveToUserInput();
 			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 		}
 		else if(user_input_char != ASCI_BACKSPACE && user_input_size < (USER_INPUT_MAX - 1)) {
 			user_input_buffer[user_input_size] = user_input_char;
 			user_input_size++;
 			user_input_buffer[user_input_size] = '\0';
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size);
+			moveCursorTo(LINE_USER_INPUT, user_input_size);
 			plputc(COM2, user_input_char);
 		}
 		else if(user_input_char != '\n' && user_input_char != '\r'){
@@ -368,7 +381,7 @@ int handleUserInput() {
 		// If is EOL or buffer full
 		if(user_input_char == '\n' || user_input_char == '\r' || user_input_size == USER_INPUT_MAX) {
 			// Clear the input line
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, COLUMN_FIRST);
+			moveCursorTo(LINE_USER_INPUT, COLUMN_FIRST);
 			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 			
 			DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
@@ -380,7 +393,7 @@ int handleUserInput() {
 			handleUserCommand();
 			
 			// Send to last command
-			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_LAST_COMMAND, COLUMN_FIRST);
+			moveCursorTo(LINE_LAST_COMMAND, COLUMN_FIRST);
 			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 			plputstr(COM2, user_input_buffer);
 			
@@ -437,10 +450,10 @@ void requestSensorData(){
 }
 
 void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {	
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + sensor_recent_next * COLUMN_SENSOR_WIDTH);
+	moveCursorTo(LINE_RECENT_SENSOR, COLUMN_FIRST + sensor_recent_next * COLUMN_WIDTH);
 	plprintf(COM2, "|%c%d    ", decoder_id, sensor_id);
 	sensor_recent_next = (sensor_recent_next + 1) % SENSOR_RECENT_TOTAL;
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + sensor_recent_next * COLUMN_SENSOR_WIDTH);
+	moveCursorTo(LINE_RECENT_SENSOR, COLUMN_FIRST + sensor_recent_next * COLUMN_WIDTH);
 	plprintf(COM2, "|-Next- ");
 }
 
@@ -583,7 +596,7 @@ int main(int argc, char* argv[]) {
 	pollingLoop();
 	
 	setTimerControl(TIMER3_BASE, FALSE, FALSE, FALSE);
-	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_BOTTOM, COLUMN_FIRST);
+	moveCursorTo(LINE_BOTTOM, COLUMN_FIRST);
 	
 	plflush(COM1);
 	plflush(COM2);
