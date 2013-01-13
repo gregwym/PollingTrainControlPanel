@@ -27,16 +27,20 @@
 
 #define LINE_ELAPSED_TIME 1
 #define LINE_LAST_COMMAND 3
-#define LINE_RECENT_SENSOR 4
-#define LINE_USER_INPUT 20
+#define LINE_RECENT_SENSOR 5
+#define LINE_SWITCH_TABLE 6
+#define LINE_USER_INPUT 14
 #define LINE_DEBUG 25
 #define LINE_BOTTOM 35
 
 #define COLUMN_FIRST 1
 #define COLUMN_WIDTH 8
-#define COLUMN_VALUES 17
+#define COLUMN_VALUES COLUMN_WIDTH * 2 + 1
 #define COLUMN_ELAPSED_TIME 70
 #define COLUMN_SENSOR_DEBUG 60
+
+#define HEIGHT_SWITCH_TABLE 6
+#define WIDTH_SWITCH_TABLE 4
 
 /* User Inputs */
 #define USER_INPUT_MAX 50
@@ -58,6 +62,11 @@
 #define SWITCH_STR 33
 #define SWITCH_CUR 34
 #define SWITCH_OFF 32
+#define SWITCH_TOTAL 22
+#define SWITCH_NAMING_BASE 1
+#define SWITCH_NAMING_MAX 18
+#define SWITCH_NAMING_MID_BASE 153
+#define SWITCH_NAMING_MID_MAX 156
 
 #define SENSOR_AUTO_RESET 192
 #define SENSOR_READ_ONE 192
@@ -94,6 +103,8 @@ TrainCommand train_commands_buffer[TRAIN_COMMAND_BUFFER_MAX] = {};
 unsigned int train_commands_save_index = 0;
 unsigned int train_commands_send_index = 0;
 int train_commands_pause_time = 0;
+
+int switch_ids[SWITCH_TOTAL] = {};
 
 // Sensor Data
 char sensor_decoder_data[SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH] = {};
@@ -144,22 +155,43 @@ inline void moveCursorTo(int line, int column) {
 }
 
 inline void moveToUserInput() {
-	moveCursorTo(LINE_USER_INPUT, user_input_size + 1);
+	moveCursorTo(LINE_USER_INPUT, COLUMN_VALUES + user_input_size);
 }
 
 inline void printLineDivider() {
-	plprintf(COM2, "----------------------------------------------------------------------------------------\n");
+	plprintf(COM2, "--------------------------------------------------------------------------------\n");
 }
 
 void initializeScreen() {
+	int i;
+	
 	printAsciControl(COM2, ASCI_CLEAR_SCREEN, NO_ARG, NO_ARG);
 	moveCursorTo(LINE_ELAPSED_TIME, COLUMN_FIRST);
 	plprintf(COM2, "Märklin Digital Train Control Panel                  Time elapsed: \n");
 	printLineDivider();
 	plprintf(COM2, "Last Command  | \n");
+	printLineDivider();
 	plprintf(COM2, "Recent Sensor | \n");
 	printLineDivider();
-	
+	plprintf(COM2, "Track Switchs | ");
+	for(i = 0; i < SWITCH_TOTAL; i++) {
+		switch_ids[i] = i < SWITCH_NAMING_MAX ? i + SWITCH_NAMING_BASE : i + SWITCH_NAMING_MID_BASE - SWITCH_NAMING_MAX;
+	}
+	int cells = (WIDTH_SWITCH_TABLE * HEIGHT_SWITCH_TABLE - 1);
+	for(i = 0; i < cells; i++) {
+		int index = (i % WIDTH_SWITCH_TABLE) * HEIGHT_SWITCH_TABLE + i / WIDTH_SWITCH_TABLE;
+		if(index < SWITCH_TOTAL) {
+			int id = switch_ids[index];
+			plprintf(COM2, "%d   ", id);
+			if(id / 100 == 0) plputc(COM2, ' ');
+			if(id / 10 == 0) plputc(COM2, ' ');
+			plputstr(COM2, "| ?     | ");
+		}
+		if(i % WIDTH_SWITCH_TABLE == (WIDTH_SWITCH_TABLE - 1)) plprintf(COM2, "\n              | ");
+	}
+	plputc(COM2, '\n');
+	printLineDivider();
+	plprintf(COM2, "Command       | \n");
 }
 
 /* 
@@ -346,6 +378,7 @@ int handleUserCommand() {
 		DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG + 2, COLUMN_FIRST, "User Input: Arg1 0x%x\n", number);
 		str = str2token(str, token, USER_COMMAND_TOKEN_MAX);
 		unsigned char value = 0;
+		int line = 0, column = 0, index = 0;
 		switch(command[0]) {
 			case 'r':
 			case 't':
@@ -355,8 +388,15 @@ int handleUserCommand() {
 				break;
 			case 's':
 				if(token[0] != 'S' && token[0] != 'C') return -1;
+				if(number < SWITCH_NAMING_BASE || (number > SWITCH_NAMING_MAX && number < SWITCH_NAMING_MID_BASE) || number > SWITCH_NAMING_MID_MAX) return -1;
 				value = (token[0] == 'S') ? SWITCH_STR : SWITCH_CUR;
 				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "#%d Direct %s\n", number, token);
+				index = number > SWITCH_NAMING_MAX ? number - SWITCH_NAMING_MID_BASE + SWITCH_NAMING_MAX : number - SWITCH_NAMING_BASE;
+				line = index % HEIGHT_SWITCH_TABLE + LINE_SWITCH_TABLE;
+				column = (index / HEIGHT_SWITCH_TABLE) * COLUMN_WIDTH * 2 + COLUMN_VALUES + COLUMN_WIDTH;
+				DEBUG_JMP(DB_IO, LINE_DEBUG, COLUMN_FIRST, "Cursor to %d, %d", line, column);
+				moveCursorTo(line, column);
+				plputc(COM2, token[0]);
 				break;
 			default:
 				return -1;
@@ -387,10 +427,11 @@ int handleUserInput() {
 			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 		}
 		else if(user_input_char != ASCI_BACKSPACE && user_input_size < (USER_INPUT_MAX - 1)) {
+			moveToUserInput();
 			user_input_buffer[user_input_size] = user_input_char;
 			user_input_size++;
 			user_input_buffer[user_input_size] = '\0';
-			moveCursorTo(LINE_USER_INPUT, user_input_size);
+			// moveToUserInput();
 			plputc(COM2, user_input_char);
 		}
 		else if(user_input_char != '\n' && user_input_char != '\r'){
@@ -400,10 +441,6 @@ int handleUserInput() {
 		// If is EOL or buffer full
 		if(user_input_char == '\n' || user_input_char == '\r' || user_input_size >= USER_INPUT_MAX) {
 			DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
-						
-			// Clear the input line
-			moveCursorTo(LINE_USER_INPUT, COLUMN_FIRST);
-			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 			
 			// If is q, quit
 			if(user_input_size == 2 && user_input_buffer[0] == 'q') {
@@ -420,6 +457,8 @@ int handleUserInput() {
 			// Reset input buffer
 			user_input_buffer[0] = '\0';
 			user_input_size = 0;
+			moveToUserInput();
+			printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
 		}
 	}
 	return 0;
@@ -471,12 +510,12 @@ void requestSensorData(){
 
 void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {	
 	moveCursorTo(LINE_RECENT_SENSOR, COLUMN_VALUES + sensor_recent_next * COLUMN_WIDTH);
-	plprintf(COM2, "%c%d    ", decoder_id, sensor_id);
+	plprintf(COM2, "%c%d   ", decoder_id, sensor_id);
 	if((sensor_id / 10) == 0) plputc(COM2, ' ');
-	plputc(COM2, '|');
+	plputstr(COM2, "| ");
 	sensor_recent_next = (sensor_recent_next + 1) % SENSOR_RECENT_TOTAL;
 	moveCursorTo(LINE_RECENT_SENSOR, COLUMN_VALUES + sensor_recent_next * COLUMN_WIDTH);
-	plprintf(COM2, "-Next- |");
+	plprintf(COM2, "-Next-| ");
 }
 
 void saveDecoderData(unsigned int decoder_index, char new_data) {
@@ -560,7 +599,7 @@ void pollingLoop() {
 	train_commands_send_index = 0;
 	train_commands_pause_time = 0;
 	train_commands_buffer[train_commands_send_index].delay = 0;
-	
+		
 	/* Initialize User Input Buffer */
 	user_input_size = 0;
 	user_input_buffer[user_input_size] = '\0';
