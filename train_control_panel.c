@@ -67,6 +67,7 @@
 #define SENSOR_BYTE_EACH 2
 #define SENSOR_BYTE_SIZE 8
 #define SENSOR_BIT_MASK 0x01
+#define SENSOR_REQUEST_DELAY 0
 #define SENSOR_REQUEST_TIMEOUT TRAIN_COMMAND_PAUSE_TIMEOUT
 
 /* Global Variable Declarations */
@@ -464,7 +465,7 @@ void requestSensorData(){
 	int decoder_index = sensor_decoder_next / SENSOR_BYTE_EACH;
 	sensor_decoder_next = decoder_index * SENSOR_BYTE_EACH;
 	char command = SENSOR_READ_ONE + (sensor_decoder_next / SENSOR_BYTE_EACH) + 1;
-	pushTrainCommand(command, TRAIN_COMMAND_DELAY, TRAIN_COMMAND_PAUSE_TIMEOUT);
+	pushTrainCommand(command, SENSOR_REQUEST_DELAY, TRAIN_COMMAND_PAUSE_TIMEOUT);
 	DEBUG_JMP(DB_SENSOR, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH + 1, COLUMN_SENSOR_DEBUG, "Req %d\n", command);
 }
 
