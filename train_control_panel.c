@@ -38,6 +38,7 @@
 
 /* User Inputs */
 #define USER_INPUT_MAX 100
+#define USER_COMMAND_TOKEN_MAX 10
 #define USER_COMMAND_QUIT 1
 
 /* Train Control */
@@ -254,8 +255,10 @@ int popTrainCommand(unsigned int tick_elapsed) {
  */
 
 // export the first token to 'token' and return the address of the start of next token (maybe EOL)
-const char *str2token(const char *str, char *token) {
-	while(*str != '\0' && *str != ' ' && *str != '\n' && *str != '\r') *token++ = *str++;
+const char *str2token(const char *str, char *token, int token_size) {
+	token_size--;
+	char *start = token;
+	while(*str != '\0' && *str != ' ' && *str != '\n' && *str != '\r' && (token - start) < token_size) *token++ = *str++;
 	*token = '\0';
 	while(*str == ' ') str++;
 	return str;
@@ -302,18 +305,18 @@ int handleUserCommand() {
 	}
 	
 	const char *str = user_input_buffer;
-	char command[10], token[10];
+	char command[USER_COMMAND_TOKEN_MAX], token[USER_COMMAND_TOKEN_MAX];
 	command[0] = '\0';
 	token[0] = '\0';
-	str = str2token(str, command);
+	str = str2token(str, command, USER_COMMAND_TOKEN_MAX);
 	DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
 	
 	if(strcmp(command, "tr") == 0 || strcmp(command, "rv") == 0 || strcmp(command, "sw") == 0) {
-		str = str2token(str, token);
+		str = str2token(str, token, USER_COMMAND_TOKEN_MAX);
 		unsigned char number = atoi(token, 10);
 		
 		DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Arg1 0x%x\n", number);
-		str = str2token(str, token);
+		str = str2token(str, token, USER_COMMAND_TOKEN_MAX);
 		unsigned char value = 0;
 		switch(command[0]) {
 			case 'r':
@@ -358,7 +361,7 @@ int handleUserInput() {
 			printAsciControl(COM2, ASCI_CURSOR_TO, LINE_USER_INPUT, user_input_size);
 			plputc(COM2, user_input_char);
 		}
-		else {
+		else if(user_input_char != '\n' && user_input_char != '\r'){
 			return -1;
 		}
 		
