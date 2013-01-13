@@ -516,6 +516,8 @@ void collectSensorData(int tick_elapsed) {
 	char new_data = '\0';
 	if(plgetc(COM1, &new_data) > 0) {
 		DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Data In %d     \n", sensor_decoder_next);
+		sensor_request_time = 0;
+		
 		// Save the data
 		saveDecoderData(sensor_decoder_next, new_data);
 		
