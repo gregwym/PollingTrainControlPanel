@@ -95,12 +95,6 @@ char sensor_decoder_data[SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH] = {};
 char sensor_decoder_ids[SENSOR_DECODER_TOTAL] = {};
 unsigned int sensor_decoder_next = 0;
 
-typedef struct SensorDatum {
-	char decoder_id;
-	unsigned int sensor_id;
-	unsigned int value;
-} SensorDatum;
-// SensorDatum sensor_recent_data[SENSOR_RECENT_TOTAL] = {};
 unsigned int sensor_recent_next = 0;
 unsigned int sensor_request_cts = 0;
 int sensor_request_time = 0;
@@ -400,13 +394,13 @@ int handleUserInput() {
  */
 
 void sensorBootstrap(){
-	// int i, j;
-	// for(i = 0; i < SENSOR_DECODER_TOTAL; i++) {
-	// 	sensor_decoder_ids[i] = 'A' + i;
-	// 	for(j = 0; j < SENSOR_BYTE_EACH; j++) {
-	// 		sensor_decoder_data[i * SENSOR_BYTE_EACH + j] = 0xff;
-	// 	}
-	// }
+	int i, j;
+	for(i = 0; i < SENSOR_DECODER_TOTAL; i++) {
+		sensor_decoder_ids[i] = 'A' + i;
+		for(j = 0; j < SENSOR_BYTE_EACH; j++) {
+			sensor_decoder_data[i * SENSOR_BYTE_EACH + j] = 0x00;
+		}
+	}
 	sensor_request_cts = TRUE;
 
 	DEBUG_JMP(DB_SENSOR, LINE_DEBUG, COLUMN_FIRST, "Sensor: Booting\n");
@@ -439,22 +433,7 @@ void requestSensorData(){
 	DEBUG_JMP(DB_SENSOR, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH + 1, COLUMN_SENSOR_DEBUG, "Req %d\n", command);
 }
 
-void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {
-	// sensor_recent_data[sensor_recent_next].decoder_id = decoder_id;
-	// sensor_recent_data[sensor_recent_next].sensor_id = sensor_id;
-	// sensor_recent_data[sensor_recent_next].value = value;
-	// int current_sensor_index = sensor_recent_next;
-	// sensor_recent_next = (sensor_recent_next + 1) % SENSOR_RECENT_TOTAL;
-	
-	// Print
-	// int i = 0;
-	// printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST);
-	// printAsciControl(COM2, ASCI_CLEAR_TO_EOL, NO_ARG, NO_ARG);
-	// for(i = current_sensor_index; i != sensor_recent_next; i = ((i + SENSOR_RECENT_TOTAL - 1) % SENSOR_RECENT_TOTAL)) {
-	// 	plprintf(COM2, "|%c%d:%x\t", (sensor_recent_data[i]).decoder_id, sensor_recent_data[i].sensor_id, sensor_recent_data[i].value);
-	// }
-	// plprintf(COM2, "|%c%d:%x\t", (sensor_recent_data[i]).decoder_id, sensor_recent_data[i].sensor_id, sensor_recent_data[i].value);
-	
+void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {	
 	printAsciControl(COM2, ASCI_CURSOR_TO, LINE_RECENT_SENSOR, COLUMN_FIRST + sensor_recent_next * COLUMN_SENSOR_WIDTH);
 	plprintf(COM2, "|%c%d    ", decoder_id, sensor_id);
 	sensor_recent_next = (sensor_recent_next + 1) % SENSOR_RECENT_TOTAL;
@@ -464,32 +443,32 @@ void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int valu
 
 void saveDecoderData(unsigned int decoder_index, char new_data) {
 	// Save to sensor_decoder_data
-	// char old_data = sensor_decoder_data[decoder_index];
-	// sensor_decoder_data[decoder_index] = new_data;
+	char old_data = sensor_decoder_data[decoder_index];
+	sensor_decoder_data[decoder_index] = new_data;
 	
 	// If changed
-	// if(old_data != new_data) {
-	if(new_data) {
+	if(new_data && old_data != new_data) {
+	// if(new_data) {
 		DEBUG_JMP(DB_SENSOR, LINE_DEBUG + decoder_index, COLUMN_SENSOR_DEBUG, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
 		
 		char decoder_id = sensor_decoder_ids[decoder_index / 2];
-		// char old_temp = old_data;
+		char old_temp = old_data;
 		char new_temp = new_data;
 		
 		// Found which sensor changed
 		int i;
-		unsigned int /* old_bit, */new_bit;
+		unsigned int old_bit, new_bit;
 		for(i = 0; i < SENSOR_BYTE_SIZE; i++) {
-			// old_bit = old_temp & SENSOR_BIT_MASK;
+			old_bit = old_temp & SENSOR_BIT_MASK;
 			new_bit = new_temp & SENSOR_BIT_MASK;
 			// If changed
-			if(/*old_bit != */new_bit) {
+			if(new_bit && old_bit != new_bit) {
 				int sensor_id = (SENSOR_BYTE_SIZE * (decoder_index % 2)) + (SENSOR_BYTE_SIZE - i);
 				DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_SENSOR_DEBUG, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, 0 /*old_bit*/, new_bit);
 				
 				pushRecentSensor(decoder_id, sensor_id, new_bit);
 			}
-			// old_temp = old_temp >> 1;
+			old_temp = old_temp >> 1;
 			new_temp = new_temp >> 1;
 		}
 	}
