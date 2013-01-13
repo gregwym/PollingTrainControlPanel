@@ -39,7 +39,7 @@
 #define COLUMN_SENSOR_DEBUG 60
 
 /* User Inputs */
-#define USER_INPUT_MAX 100
+#define USER_INPUT_MAX 50
 #define USER_COMMAND_TOKEN_MAX 10
 #define USER_COMMAND_QUIT 1
 
@@ -47,10 +47,10 @@
 #define SYSTEM_START 96
 #define SYSTEM_STOP 97
 
-#define TRAIN_COMMAND_BUFFER_MAX 100
-#define TRAIN_COMMAND_PAUSE_TIMEOUT 100
+#define TRAIN_COMMAND_BUFFER_MAX 200
+#define TRAIN_COMMAND_PAUSE_TIMEOUT 25
 #define TRAIN_COMMAND_DEBUG_LINES 15
-#define TRAIN_COMMAND_DELAY 5
+#define TRAIN_COMMAND_DELAY 3
 #define TRAIN_REVERSE 15
 #define TRAIN_REVERSE_DELAY 100
 #define TRAIN_FUNCTION_BASE 16
@@ -534,8 +534,12 @@ void collectSensorData(int tick_elapsed) {
 		sensor_request_time += tick_elapsed;
 	} 
 	// Request for another chunk of data
-	if(sensor_request_cts == TRUE || sensor_request_time > SENSOR_REQUEST_TIMEOUT) {
-		if(sensor_request_time > SENSOR_REQUEST_TIMEOUT) DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_FIRST, "Restart %d", train_commands_pause_time);
+	int sending_delay = train_commands_buffer[train_commands_send_index].delay;
+	if(sending_delay > TRAIN_COMMAND_DELAY) {
+		sensor_request_time = 0;
+	}
+	if(sensor_request_cts == TRUE || (sensor_request_time > SENSOR_REQUEST_TIMEOUT)) {
+		if(sensor_request_time > SENSOR_REQUEST_TIMEOUT) DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_FIRST, "Restart %d", sensor_request_time);
 		requestSensorData();
 	}
 }
@@ -553,6 +557,7 @@ void pollingLoop() {
 	train_commands_save_index = 0;
 	train_commands_send_index = 0;
 	train_commands_pause_time = 0;
+	train_commands_buffer[train_commands_send_index].delay = 0;
 	
 	/* Initialize User Input Buffer */
 	user_input_size = 0;
