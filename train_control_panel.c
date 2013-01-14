@@ -202,10 +202,10 @@ void initializeScreen() {
 
 unsigned int setTimerControl(int timer_base, unsigned int enable, unsigned int mode, unsigned int clksel) {
 	unsigned int* timer_control_addr = (unsigned int*) (timer_base + CRTL_OFFSET);
-	DEBUG(DB_TIMER, "Timer3 base: 0x%x ctrl addr: 0x%x offset: 0x%x.\n", timer_base, timer_control_addr, CRTL_OFFSET);
+	// DEBUG(DB_TIMER, "Timer3 base: 0x%x ctrl addr: 0x%x offset: 0x%x.\n", timer_base, timer_control_addr, CRTL_OFFSET);
 
 	unsigned int control_value = (ENABLE_MASK & enable) | (MODE_MASK & mode) | (CLKSEL_MASK & clksel) ;
-	DEBUG(DB_TIMER, "Timer3 control changing from 0x%x to 0x%x.\n", *timer_control_addr, control_value);
+	// DEBUG(DB_TIMER, "Timer3 control changing from 0x%x to 0x%x.\n", *timer_control_addr, control_value);
 
 	*timer_control_addr = control_value;
 	return *timer_control_addr;
@@ -260,8 +260,8 @@ int pushTrainCommand(char command, int delay, int pause) {
 		
 		int sending_delay = train_commands_buffer[train_commands_send_index].delay;
 		if(sending_delay > TRAIN_COMMAND_DELAY || command < SENSOR_READ_ONE || command > (SENSOR_READ_ONE + SENSOR_DECODER_TOTAL)) {
-			DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + (train_commands_save_index % TRAIN_COMMAND_DEBUG_LINES) + 1, COLUMN_FIRST, "%d <- %d %d %d", train_commands_save_index, command, delay, pause);
-			DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + (next_index % TRAIN_COMMAND_DEBUG_LINES) + 1, COLUMN_FIRST, "%c[%s", ASCI_ESC, ASCI_CLEAR_LINE);
+			// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + (train_commands_save_index % TRAIN_COMMAND_DEBUG_LINES) + 1, COLUMN_FIRST, "%d <- %d %d %d", train_commands_save_index, command, delay, pause);
+			// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + (next_index % TRAIN_COMMAND_DEBUG_LINES) + 1, COLUMN_FIRST, "%c[%s", ASCI_ESC, ASCI_CLEAR_LINE);
 		}
 		
 		train_commands_save_index = next_index;
@@ -269,7 +269,7 @@ int pushTrainCommand(char command, int delay, int pause) {
 		return 1;
 	}
 	
-	DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Command buffer full\n");
+	// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Command buffer full\n");
 	return 0;
 }
 
@@ -281,7 +281,7 @@ int popTrainCommand(unsigned int tick_elapsed) {
 		else return -1;
 		
 		if(train_commands_pause_time <= 0) {
-			DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Override %d\n", train_commands_pause_time);
+			// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Override %d\n", train_commands_pause_time);
 		}
 	}
 	
@@ -290,19 +290,19 @@ int popTrainCommand(unsigned int tick_elapsed) {
 		if(delay > 0 && tick_elapsed > 0) {
 			delay -= tick_elapsed;
 			train_commands_buffer[train_commands_send_index].delay = delay;
-			// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + (train_commands_send_index % TRAIN_COMMAND_DEBUG_LINES) + 1, COLUMN_FIRST + 20, "-| D:%d", delay);
+			// // DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + (train_commands_send_index % TRAIN_COMMAND_DEBUG_LINES) + 1, COLUMN_FIRST + 20, "-| D:%d", delay);
 		}
 		
 		if(delay <= 0) {
 			unsigned int next_index = (train_commands_send_index + 1) % TRAIN_COMMAND_BUFFER_MAX;
 			train_commands_pause_time = train_commands_buffer[train_commands_send_index].pause;
 			if(train_commands_pause_time > 0) {
-				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Paused    \n");
+				// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Paused    \n");
 			}
 			
 			char command = train_commands_buffer[train_commands_send_index].command;
 			if(command < SENSOR_READ_ONE || command > (SENSOR_READ_ONE + SENSOR_DECODER_TOTAL)) {
-				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + (train_commands_send_index % TRAIN_COMMAND_DEBUG_LINES) + 1, COLUMN_FIRST + 20, "-> %d %d %d", command, delay, train_commands_pause_time);
+				// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG + (train_commands_send_index % TRAIN_COMMAND_DEBUG_LINES) + 1, COLUMN_FIRST + 20, "-> %d %d %d", command, delay, train_commands_pause_time);
 			}
 			plputc(COM1, command);
 			
@@ -356,11 +356,11 @@ int handleUserCommand() {
 	if(user_input_size == 2) {
 		switch(user_input_buffer[0]) {
 			case 'g':
-				DEBUG(DB_TRAIN_CTRL, "Starting\n");
+				// DEBUG(DB_TRAIN_CTRL, "Starting\n");
 				pushTrainCommand(SYSTEM_START, TRAIN_COMMAND_DELAY, FALSE);
 				break;
 			case 's':
-				DEBUG(DB_TRAIN_CTRL, "Stoping\n");
+				// DEBUG(DB_TRAIN_CTRL, "Stoping\n");
 				pushTrainCommand(SYSTEM_STOP, TRAIN_COMMAND_DELAY, FALSE);
 				break;
 			default:
@@ -374,14 +374,14 @@ int handleUserCommand() {
 	command[0] = '\0';
 	token[0] = '\0';
 	str = str2token(str, command, USER_COMMAND_TOKEN_MAX);
-	DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG + 1, COLUMN_FIRST, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
+	// DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG + 1, COLUMN_FIRST, "User Input: Extracted command %s from 0x%x to 0x%x\n", command, user_input_buffer, str);
 	
 	if(strcmp(command, "tr") == 0 || strcmp(command, "rv") == 0 || strcmp(command, "sw") == 0) {
 		str = str2token(str, token, USER_COMMAND_TOKEN_MAX);
 		if(token[0] == '\0') return -1;
 		unsigned char number = atoi(token, 10);
 		
-		DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG + 2, COLUMN_FIRST, "User Input: Arg1 0x%x\n", number);
+		// DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG + 2, COLUMN_FIRST, "User Input: Arg1 0x%x\n", number);
 		str = str2token(str, token, USER_COMMAND_TOKEN_MAX);
 		unsigned char value = 0;
 		int line = 0, column = 0, index = 0;
@@ -390,17 +390,17 @@ int handleUserCommand() {
 			case 't':
 				if(command[0] == 't' && token[0] == '\0') return -1;
 				value = (command[0] == 'r') ? TRAIN_REVERSE : atoi(token, 10);
-				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "#%u Speed %u\n", number, value);
+				// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "#%u Speed %u\n", number, value);
 				break;
 			case 's':
 				if(token[0] != 'S' && token[0] != 'C') return -1;
 				if(number < SWITCH_NAMING_BASE || (number > SWITCH_NAMING_MAX && number < SWITCH_NAMING_MID_BASE) || number > SWITCH_NAMING_MID_MAX) return -1;
 				value = (token[0] == 'S') ? SWITCH_STR : SWITCH_CUR;
-				DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "#%d Direct %s\n", number, token);
+				// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG, COLUMN_FIRST, "#%d Direct %s\n", number, token);
 				index = number > SWITCH_NAMING_MAX ? number - SWITCH_NAMING_MID_BASE + SWITCH_NAMING_MAX : number - SWITCH_NAMING_BASE;
 				line = index % HEIGHT_SWITCH_TABLE + LINE_SWITCH_TABLE;
 				column = (index / HEIGHT_SWITCH_TABLE) * COLUMN_WIDTH * 2 + COLUMN_VALUES + COLUMN_WIDTH;
-				DEBUG_JMP(DB_IO, LINE_DEBUG, COLUMN_FIRST, "Cursor to %d, %d", line, column);
+				// DEBUG_JMP(DB_IO, LINE_DEBUG, COLUMN_FIRST, "Cursor to %d, %d", line, column);
 				moveCursorTo(line, column);
 				plputc(COM2, token[0]);
 				break;
@@ -446,7 +446,7 @@ int handleUserInput() {
 		
 		// If is EOL or buffer full
 		if(user_input_char == '\n' || user_input_char == '\r' || user_input_size >= USER_INPUT_MAX) {
-			DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
+			// DEBUG_JMP(DB_USER_INPUT, LINE_DEBUG, COLUMN_FIRST, "User Input: Reach EOL. Input Size %u, value %s\n", user_input_size, user_input_buffer);
 			
 			// If is q, quit
 			if(user_input_size == 2 && user_input_buffer[0] == 'q') {
@@ -484,12 +484,12 @@ void sensorBootstrap(){
 	}
 	sensor_request_cts = TRUE;
 
-	DEBUG_JMP(DB_SENSOR, LINE_DEBUG, COLUMN_FIRST, "Sensor: Booting\n");
+	// DEBUG_JMP(DB_SENSOR, LINE_DEBUG, COLUMN_FIRST, "Sensor: Booting\n");
 	while((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, RXFE_MASK))) {
 		plputc(COM2, '.');
 		char c;
 		if(plgetc(COM1, &c) > 0) {
-			DEBUG(DB_SENSOR, "Sensor: Consuming sensor data 0x%x\n", c);
+			// DEBUG(DB_SENSOR, "Sensor: Consuming sensor data 0x%x\n", c);
 		}
 		plsend(COM2); // Send debug message chars
 	}
@@ -509,7 +509,7 @@ void requestSensorData(){
 	sensor_decoder_next = decoder_index * SENSOR_BYTE_EACH;
 	char command = SENSOR_READ_ONE + (sensor_decoder_next / SENSOR_BYTE_EACH) + 1;
 	pushTrainCommand(command, SENSOR_REQUEST_DELAY, TRAIN_COMMAND_PAUSE_TIMEOUT);
-	DEBUG_JMP(DB_SENSOR, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH + 1, COLUMN_SENSOR_DEBUG, "Req %d\n", command);
+	// DEBUG_JMP(DB_SENSOR, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH + 1, COLUMN_SENSOR_DEBUG, "Req %d\n", command);
 }
 
 void pushRecentSensor(char decoder_id, unsigned int sensor_id, unsigned int value) {	
@@ -530,7 +530,7 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 	// If changed
 	if(new_data && old_data != new_data) {
 	// if(new_data) {
-		DEBUG_JMP(DB_SENSOR, LINE_DEBUG + decoder_index, COLUMN_SENSOR_DEBUG, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
+		// DEBUG_JMP(DB_SENSOR, LINE_DEBUG + decoder_index, COLUMN_SENSOR_DEBUG, "%c%d: 0x%x\n", sensor_decoder_ids[decoder_index / 2], decoder_index % 2, new_data);
 		
 		char decoder_id = sensor_decoder_ids[decoder_index / 2];
 		char old_temp = old_data;
@@ -545,7 +545,7 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 			// If changed
 			if(new_bit && old_bit != new_bit) {
 				int sensor_id = (SENSOR_BYTE_SIZE * (decoder_index % 2)) + (SENSOR_BYTE_SIZE - i);
-				DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_SENSOR_DEBUG, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, 0 /*old_bit*/, new_bit);
+				// DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_SENSOR_DEBUG, "#%c%d %x -> %x\n", sensor_decoder_ids[decoder_index / 2], sensor_id, 0 /*old_bit*/, new_bit);
 				
 				pushRecentSensor(decoder_id, sensor_id, new_bit);
 			}
@@ -558,7 +558,7 @@ void saveDecoderData(unsigned int decoder_index, char new_data) {
 void collectSensorData(int tick_elapsed) {
 	char new_data = '\0';
 	if(plgetc(COM1, &new_data) > 0) {
-		DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Data In %d     \n", sensor_decoder_next);
+		// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Data In %d     \n", sensor_decoder_next);
 		sensor_request_time = 0;
 		
 		// Save the data
@@ -566,12 +566,12 @@ void collectSensorData(int tick_elapsed) {
 		
 		// Increment the counter
 		sensor_decoder_next = (sensor_decoder_next + 1) % (SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH);
-		DEBUG_JMP(DB_SENSOR, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH, COLUMN_SENSOR_DEBUG, "N %d\n", sensor_decoder_next);
+		// DEBUG_JMP(DB_SENSOR, LINE_DEBUG + SENSOR_DECODER_TOTAL * SENSOR_BYTE_EACH, COLUMN_SENSOR_DEBUG, "N %d\n", sensor_decoder_next);
 		
 		// If end receiving last chunk of data, clear to send sensor data request
 		if((sensor_decoder_next % 2) == 0) {
 			receivedSensorData();
-			DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Continue   ");
+			// DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Continue   ");
 		}
 	}
 	
@@ -585,7 +585,7 @@ void collectSensorData(int tick_elapsed) {
 	}
 	if(sensor_request_cts == TRUE || (sensor_request_time > SENSOR_REQUEST_TIMEOUT)) {
 		if(sensor_request_time > SENSOR_REQUEST_TIMEOUT) {
-			DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_FIRST, "Restart %d", sensor_request_time);
+			// DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_FIRST, "Restart %d", sensor_request_time);
 		}
 		requestSensorData();
 	}
@@ -656,25 +656,25 @@ int main(int argc, char* argv[]) {
 	setRegisterBit(UART1_BASE, UART_LCRH_OFFSET, STP2_MASK, TRUE);
 	
 	/* Verifiying COM1's Configuration: nothing when debug flag is turned off */
-	DEBUG_JMP(DB_IO, LINE_DEBUG, COLUMN_FIRST, "COM1 LCRH: 0x%x\n", getRegister(UART1_BASE, UART_LCRH_OFFSET)); // 0x68
-	DEBUG(DB_IO, "COM1 LCRM: 0x%x\n", getRegister(UART1_BASE, UART_LCRM_OFFSET)); // 0x0
-	DEBUG(DB_IO, "COM1 LCRL: 0x%x\n", getRegister(UART1_BASE, UART_LCRL_OFFSET)); // 0xbf
-	DEBUG(DB_IO, "COM1 CTRL: 0x%x\n", getRegister(UART1_BASE, UART_CTLR_OFFSET)); // 0x1
-	DEBUG(DB_IO, "COM1 FLAG: 0x%x\n", getRegister(UART1_BASE, UART_FLAG_OFFSET)); // 0x91
-	DEBUG(DB_IO, "IO Initialized.\n");
+	// DEBUG_JMP(DB_IO, LINE_DEBUG, COLUMN_FIRST, "COM1 LCRH: 0x%x\n", getRegister(UART1_BASE, UART_LCRH_OFFSET)); // 0x68
+	// DEBUG(DB_IO, "COM1 LCRM: 0x%x\n", getRegister(UART1_BASE, UART_LCRM_OFFSET)); // 0x0
+	// DEBUG(DB_IO, "COM1 LCRL: 0x%x\n", getRegister(UART1_BASE, UART_LCRL_OFFSET)); // 0xbf
+	// DEBUG(DB_IO, "COM1 CTRL: 0x%x\n", getRegister(UART1_BASE, UART_CTLR_OFFSET)); // 0x1
+	// DEBUG(DB_IO, "COM1 FLAG: 0x%x\n", getRegister(UART1_BASE, UART_FLAG_OFFSET)); // 0x91
+	// DEBUG(DB_IO, "IO Initialized.\n");
 	
 	/* Initialize Timer: Enable Timer3 with free running mode and 2kHz clock */
 	setTimerControl(TIMER3_BASE, TRUE, FALSE, FALSE);
-	DEBUG(DB_TIMER, "Timer3 value start with 0x%x.\n", getTimerValue(TIMER3_BASE));
+	// DEBUG(DB_TIMER, "Timer3 value start with 0x%x.\n", getTimerValue(TIMER3_BASE));
 	
 	pollingLoop();
 	
 	setTimerControl(TIMER3_BASE, FALSE, FALSE, FALSE);
 	moveCursorTo(LINE_BOTTOM, COLUMN_FIRST);
 	
-	plflush(COM1);
+	// plflush(COM1);
 	plflush(COM2);
 	
-	plstat();
+	// plstat();
 	return 0;
 }
