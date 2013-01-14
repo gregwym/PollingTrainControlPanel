@@ -483,9 +483,7 @@ void sensorBootstrap(){
 	sensor_request_cts = TRUE;
 
 	DEBUG_JMP(DB_SENSOR, LINE_DEBUG, COLUMN_FIRST, "Sensor: Booting\n");
-	while((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, CTS_MASK)) || 
-		  (getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, TXFF_MASK)) /*|| 
-		  (!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, RXFE_MASK))*/) {
+	while((!getRegisterBit(UART1_BASE, UART_FLAG_OFFSET, RXFE_MASK))) {
 		plputc(COM2, '.');
 		char c;
 		if(plgetc(COM1, &c) > 0) {
