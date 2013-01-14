@@ -280,7 +280,9 @@ int popTrainCommand(unsigned int tick_elapsed) {
 		}
 		else return -1;
 		
-		if(train_commands_pause_time <= 0) DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Override %d\n", train_commands_pause_time);
+		if(train_commands_pause_time <= 0) {
+			DEBUG_JMP(DB_TRAIN_CTRL, LINE_DEBUG - 1, COLUMN_FIRST, "Override %d\n", train_commands_pause_time);
+		}
 	}
 	
 	if(train_commands_send_index != train_commands_save_index) {
@@ -582,7 +584,9 @@ void collectSensorData(int tick_elapsed) {
 		sensor_request_time = 0;
 	}
 	if(sensor_request_cts == TRUE || (sensor_request_time > SENSOR_REQUEST_TIMEOUT)) {
-		if(sensor_request_time > SENSOR_REQUEST_TIMEOUT) DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_FIRST, "Restart %d", sensor_request_time);
+		if(sensor_request_time > SENSOR_REQUEST_TIMEOUT) {
+			DEBUG_JMP(DB_SENSOR, LINE_DEBUG - 1, COLUMN_FIRST, "Restart %d", sensor_request_time);
+		}
 		requestSensorData();
 	}
 }
