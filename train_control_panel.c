@@ -11,6 +11,8 @@
 #define TIMER_MAX 0xffffffff
 #define TIMER_CLOCK_BASE 10
 #define TIMER_CLOCK_TICK 20
+#define TIMER_ADJUST_PERIOD 3000
+#define TIMER_ADJUST_TICK 5
 
 /* ASCI Constants */
 #define ASCI_ESC 27
@@ -227,12 +229,14 @@ unsigned int handleTimeElapse() {
 	// If time elapsed more than 1/100 sec
 	if(time_elapsed >= TIMER_CLOCK_TICK)
 	{
-		// Add elapsed time into remaining ticks, then convert to tenth-sec
+		// Add elapsed time into remaining ticks, then convert to 1/100 sec
 		timer_value_remained += time_elapsed;
 		unsigned int tick_elapsed = timer_value_remained / TIMER_CLOCK_TICK;
 		timer_value_remained %= TIMER_CLOCK_TICK;
 		timer_tick += tick_elapsed;
 		previous_timer_value = timer_value;
+		
+		if(timer_tick % TIMER_ADJUST_PERIOD == 0) timer_tick += TIMER_ADJUST_TICK;
 		
 		moveCursorTo(LINE_ELAPSED_TIME, COLUMN_ELAPSED_TIME);
 		plprintf(COM2, "%d:%d.%d", (timer_tick / TIMER_CLOCK_BASE) / 600, ((timer_tick / TIMER_CLOCK_BASE) % 600) / 10, (timer_tick / TIMER_CLOCK_BASE) % 10);
