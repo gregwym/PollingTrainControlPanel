@@ -612,6 +612,9 @@ void pollingLoop() {
 	/* Initialize Sensor Data Request */
 	sensorBootstrap();
 	
+	/* Initialize the screen */
+	initializeScreen();
+	
 	/* Polling loop */
 	while(TRUE) {
 		
@@ -647,9 +650,6 @@ int main(int argc, char* argv[]) {
 	plsetfifo(COM1, OFF);
 	plsetspeed(COM1, 2400);
 	setRegisterBit(UART1_BASE, UART_LCRH_OFFSET, STP2_MASK, TRUE);
-	
-	/* Initialize the screen */
-	initializeScreen();
 	
 	/* Verifiying COM1's Configuration: nothing when debug flag is turned off */
 	DEBUG_JMP(DB_IO, LINE_DEBUG, COLUMN_FIRST, "COM1 LCRH: 0x%x\n", getRegister(UART1_BASE, UART_LCRH_OFFSET)); // 0x68
