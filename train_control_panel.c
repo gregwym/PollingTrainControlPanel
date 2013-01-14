@@ -236,7 +236,7 @@ unsigned int handleTimeElapse() {
 		timer_tick += tick_elapsed;
 		previous_timer_value = timer_value;
 		
-		if(timer_tick % TIMER_ADJUST_PERIOD == 0) timer_tick += TIMER_ADJUST_TICK;
+		// if(timer_tick % TIMER_ADJUST_PERIOD == 0) timer_tick += TIMER_ADJUST_TICK;
 		
 		moveCursorTo(LINE_ELAPSED_TIME, COLUMN_ELAPSED_TIME);
 		plprintf(COM2, "%d:%d.%d", (timer_tick / TIMER_CLOCK_BASE) / 600, ((timer_tick / TIMER_CLOCK_BASE) % 600) / 10, (timer_tick / TIMER_CLOCK_BASE) % 10);
