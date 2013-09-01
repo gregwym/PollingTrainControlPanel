@@ -109,3 +109,13 @@ As you can tell, circular buffer has been widely used in this project. It is the
 3. Reverse command `rv`'s behavior is dependent to the train model. i.e,
 	* Train '35' will decelerate to a slower speed before reverse and reaccelerate
 	* Train '48' will perform an emergency stop, then reverse and reaccelerate after 1 second
+
+## Credits
+
+* [Greg Wang](https://github.com/gregwym)
+
+## License
+
+[The MIT License](http://opensource.org/licenses/MIT)
+
+Copyright (c) 2013 Greg Wang [http://gregwym.info/](http://gregwym.info/)
